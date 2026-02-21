@@ -1,3 +1,9 @@
+import _ from 'lodash';
+window._ = _;
+
+import $ from 'jquery';
+window.$ = window.jQuery = $;
+
 import axios from 'axios';
 window.axios = axios;
 
