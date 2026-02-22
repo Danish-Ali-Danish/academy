@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class StudentEnrollment extends Model
@@ -12,37 +14,19 @@ class StudentEnrollment extends Model
     use SoftDeletes, HasFactory;
 
     protected $fillable = [
-        'student_id',
-        'branch_class_id',
-        'section_id',
-        'subject_group_id',
-        'academic_year_id',
-        'is_active',
+        'student_id', 'academic_year_id', 'branch_id', 'class_section_id',
+        'roll_number', 'admission_date', 'leaving_date',
+        'enrollment_type', 'status', 'leaving_reason', 'remarks', 'created_by',
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
+        'admission_date' => 'date',
+        'leaving_date'   => 'date',
     ];
 
-    // Relationships
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
-    }
-
-    public function branchClass(): BelongsTo
-    {
-        return $this->belongsTo(BranchClass::class);
-    }
-
-    public function section(): BelongsTo
-    {
-        return $this->belongsTo(Section::class);
-    }
-
-    public function subjectGroup(): BelongsTo
-    {
-        return $this->belongsTo(SubjectGroup::class);
     }
 
     public function academicYear(): BelongsTo
@@ -50,33 +34,63 @@ class StudentEnrollment extends Model
         return $this->belongsTo(AcademicYear::class);
     }
 
-    // Scopes
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    public function classSection(): BelongsTo
+    {
+        return $this->belongsTo(ClassSection::class);
+    }
+
+    public function feeVouchers(): HasMany
+    {
+        return $this->hasMany(FeeVoucher::class);
+    }
+
+    public function feePayments(): HasMany
+    {
+        return $this->hasMany(FeePayment::class);
+    }
+
+    public function feeConcessions(): HasMany
+    {
+        return $this->hasMany(StudentFeeConcession::class);
+    }
+
+    public function ledger(): HasMany
+    {
+        return $this->hasMany(StudentLedger::class);
+    }
+
+    public function advanceBalance(): HasOne
+    {
+        return $this->hasOne(StudentAdvanceBalance::class);
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(FeeRefund::class);
+    }
+
+    public function installmentAssignments(): HasMany
+    {
+        return $this->hasMany(StudentInstallmentAssignment::class);
+    }
+
+    public function onlinePaymentProofs(): HasMany
+    {
+        return $this->hasMany(OnlinePaymentProof::class);
+    }
+
+    public function studentScholarships(): HasMany
+    {
+        return $this->hasMany(StudentScholarship::class);
+    }
+
     public function scopeActive($query)
     {
-        return $query->where('is_active', true);
-    }
-
-    public function scopeForYear($query, $yearId)
-    {
-        return $query->where('academic_year_id', $yearId);
-    }
-
-    public function scopeCurrentYear($query)
-    {
-        return $query->whereHas('academicYear', function($q) {
-            $q->where('is_active', true);
-        });
-    }
-
-    // Helper - Get student's all subjects
-    public function getSubjects()
-    {
-        return ClassSubject::where('branch_class_id', $this->branch_class_id)
-            ->where(function($query) {
-                $query->where('is_compulsory', true)
-                      ->orWhere('subject_group_id', $this->subject_group_id);
-            })
-            ->with('subject')
-            ->get();
+        return $query->where('status', 'active');
     }
 }

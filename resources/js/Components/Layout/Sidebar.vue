@@ -12,7 +12,7 @@
       v-if="open"
       class="fixed inset-0 z-40 bg-gray-900/80 lg:hidden"
       @click="$emit('close')"
-    ></div>
+    ></div> 
   </Transition>
 
   <!-- Sidebar -->

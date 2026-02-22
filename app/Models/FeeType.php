@@ -1,77 +1,74 @@
 <?php
 
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FeeType extends Model
 {
-    use HasFactory;
+    use SoftDeletes, HasFactory;
 
     protected $fillable = [
-        'branch_id',
-        'name',
-        'code',
-        'amount',
-        'description',
-        'frequency',
-        'is_mandatory',
-        'applicable_from',
-        'applicable_to',
-        'status',
+        'fee_name', 'fee_category', 'is_recurring',
+        'recurring_months', 'description', 'display_order', 'is_active',
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
-        'is_mandatory' => 'boolean',
-        'applicable_from' => 'date',
-        'applicable_to' => 'date',
+        'is_recurring'  => 'boolean',
+        'is_active'     => 'boolean',
+        'display_order' => 'integer',
     ];
 
-    // Relationships
-    public function branch(): BelongsTo
+    public function feeStructures(): HasMany
     {
-        return $this->belongsTo(Branch::class);
+        return $this->hasMany(FeeStructure::class);
     }
 
-    public function fees(): HasMany
+    public function feeVouchers(): HasMany
     {
-        return $this->hasMany(Fee::class);
+        return $this->hasMany(FeeVoucher::class);
     }
 
-    // Scopes
+    public function studentFeeConcessions(): HasMany
+    {
+        return $this->hasMany(StudentFeeConcession::class);
+    }
+
+    public function feeFinRules(): HasMany
+    {
+        return $this->hasMany(FeeFineRule::class);
+    }
+
+    public function siblingDiscountRules(): HasMany
+    {
+        return $this->hasMany(SiblingDiscountRule::class, 'applies_to_fee_type_id');
+    }
+
     public function scopeActive($query)
     {
-        return $query->where('status', 'active');
+        return $query->where('is_active', true);
     }
 
-    public function scopeMandatory($query)
+    public function scopeRecurring($query)
     {
-        return $query->where('is_mandatory', true);
+        return $query->where('is_recurring', true);
     }
 
-    public function scopeByFrequency($query, $frequency)
+    public function scopeOneTime($query)
     {
-        return $query->where('frequency', $frequency);
+        return $query->where('is_recurring', false);
     }
 
-    // Helper Methods
-    public function isApplicableNow()
+    public function scopeForStudent($query, string $studentType)
     {
-        $now = now();
-        
-        if ($this->applicable_from && $now->lt($this->applicable_from)) {
-            return false;
-        }
-        
-        if ($this->applicable_to && $now->gt($this->applicable_to)) {
-            return false;
-        }
-        
-        return true;
+        // school, academy, both — student ke type ke hisaab se fees filter
+        return $query->where(function ($q) use ($studentType) {
+            $q->where('fee_category', 'both')
+              ->orWhere('fee_category', $studentType);
+        });
     }
 }
+

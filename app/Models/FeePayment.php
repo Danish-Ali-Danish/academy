@@ -5,118 +5,64 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FeePayment extends Model
 {
-    use HasFactory;
+    use SoftDeletes, HasFactory;
 
     protected $fillable = [
-        'fee_id',
-        'student_id',
-        'branch_id',
-        'payment_date',
-        'amount_paid',
-        'payment_method',
-        'transaction_id',
-        'cheque_number',
-        'bank_name',
-        'receipt_no',
-        'collected_by',
-        'notes',
-        'is_cancelled',
-        'cancelled_at',
-        'cancelled_by',
-        'cancellation_reason',
+        'receipt_no', 'voucher_id', 'student_enrollment_id',
+        'paid_amount', 'payment_date', 'payment_method',
+        'bank_name', 'transaction_ref',
+        'received_by', 'is_advance', 'notes',
     ];
 
     protected $casts = [
-        'payment_date' => 'datetime',
-        'amount_paid' => 'decimal:2',
-        'is_cancelled' => 'boolean',
-        'cancelled_at' => 'datetime',
+        'paid_amount'  => 'decimal:2',
+        'payment_date' => 'date',
+        'is_advance'   => 'boolean',
     ];
 
-    // Relationships
-    public function fee(): BelongsTo
+    public function voucher(): BelongsTo
     {
-        return $this->belongsTo(Fee::class);
+        return $this->belongsTo(FeeVoucher::class, 'voucher_id');
     }
 
-    public function student(): BelongsTo
+    public function studentEnrollment(): BelongsTo
     {
-        return $this->belongsTo(Student::class);
+        return $this->belongsTo(StudentEnrollment::class);
     }
 
-    public function branch(): BelongsTo
+    public function receivedBy(): BelongsTo
     {
-        return $this->belongsTo(Branch::class);
+        return $this->belongsTo(User::class, 'received_by');
     }
 
-    public function collectedBy(): BelongsTo
+    public function refund(): HasOne
     {
-        return $this->belongsTo(User::class, 'collected_by');
+        return $this->hasOne(FeeRefund::class, 'payment_id');
     }
 
-    public function cancelledBy(): BelongsTo
+    public function advanceAdjustments(): HasMany
     {
-        return $this->belongsTo(User::class, 'cancelled_by');
+        return $this->hasMany(FeeAdvanceAdjustment::class, 'from_payment_id');
     }
 
-    // Scopes
-    public function scopeActive($query)
+    public function onlinePaymentProof(): HasOne
     {
-        return $query->where('is_cancelled', false);
+        return $this->hasOne(OnlinePaymentProof::class, 'fee_payment_id');
     }
 
-    public function scopeCancelled($query)
+    public function installmentSchedule(): HasOne
     {
-        return $query->where('is_cancelled', true);
+        return $this->hasOne(InstallmentSchedule::class, 'payment_id');
     }
 
-    public function scopeByPaymentMethod($query, $method)
+    public function scopeAdvance($query)
     {
-        return $query->where('payment_method', $method);
-    }
-
-    public function scopeByDateRange($query, $startDate, $endDate)
-    {
-        return $query->whereBetween('payment_date', [$startDate, $endDate]);
-    }
-
-    // Helper Methods
-    public function cancel($reason, $userId)
-    {
-        if ($this->is_cancelled) {
-            return false;
-        }
-
-        $this->is_cancelled = true;
-        $this->cancelled_at = now();
-        $this->cancelled_by = $userId;
-        $this->cancellation_reason = $reason;
-        $this->save();
-
-        // Update fee paid amount
-        $fee = $this->fee;
-        $fee->paid_amount -= $this->amount_paid;
-        
-        if ($fee->paid_amount <= 0) {
-            $fee->status = 'pending';
-        } else {
-            $fee->status = 'partial';
-        }
-        
-        $fee->save();
-
-        return true;
-    }
-
-    public function generateReceiptNumber()
-    {
-        $prefix = 'REC';
-        $date = now()->format('Ymd');
-        $random = strtoupper(substr(md5(uniqid()), 0, 4));
-        
-        return "{$prefix}-{$date}-{$random}";
+        return $query->where('is_advance', true);
     }
 }

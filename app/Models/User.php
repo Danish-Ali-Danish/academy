@@ -2,117 +2,64 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles;
+    use Notifiable;
 
     protected $fillable = [
-        'branch_id',
-        'name',
-        'email',
-        'phone',
-        'password',
-        'primary_role',
-        'avatar',
-        'cnic',
-        'address',
-        'city',
-        'date_of_birth',
-        'gender',
-        'status',
-        'last_login_at',
+        'role_id', 'branch_id', 'name', 'phone',
+        'email', 'password', 'is_active',
     ];
 
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+    protected $hidden = ['password', 'remember_token'];
 
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-        'date_of_birth' => 'date',
-        'last_login_at' => 'datetime',
+        'is_active'         => 'boolean',
     ];
 
-    // Relationships
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class);
+    }
+
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    public function student(): HasOne
+    public function extraPermissions(): BelongsToMany
     {
-        return $this->hasOne(Student::class);
+        return $this->belongsToMany(Permission::class, 'user_extra_permissions')
+                    ->withPivot('granted_by', 'expires_at', 'reason', 'is_active');
     }
 
-    public function teacher(): HasOne
+    // Role check helpers
+    public function hasRole(string $role): bool
     {
-        return $this->hasOne(Teacher::class);
+        return $this->role?->role_name === $role;
     }
 
-    public function parent(): HasOne
+    public function hasPermission(string $permissionKey): bool
     {
-        return $this->hasOne(ParentModel::class);
+        // Role permissions
+        if ($this->role && $this->role->permissions->contains('permission_key', $permissionKey)) {
+            return true;
+        }
+        // Extra permissions
+        return $this->extraPermissions()
+                    ->where('permission_key', $permissionKey)
+                    ->where('is_active', true)
+                    ->exists();
     }
 
-    public function notifications()
-    {
-        return $this->hasMany(Notification::class);
-    }
-
-    public function sentMessages()
-    {
-        return $this->hasMany(Message::class, 'sender_id');
-    }
-
-    public function receivedMessages()
-    {
-        return $this->hasMany(Message::class, 'receiver_id');
-    }
-
-    // Scopes
     public function scopeActive($query)
     {
-        return $query->where('status', 'active');
-    }
-
-    public function scopeByRole($query, $role)
-    {
-        return $query->where('primary_role', $role);
-    }
-
-    // Helper Methods
-    public function isSuperAdmin(): bool
-    {
-        return $this->primary_role === 'super_admin';
-    }
-
-    public function isAdmin(): bool
-    {
-        return $this->primary_role === 'admin';
-    }
-
-    public function isTeacher(): bool
-    {
-        return $this->primary_role === 'teacher';
-    }
-
-    public function isStudent(): bool
-    {
-        return $this->primary_role === 'student';
-    }
-
-    public function isParent(): bool
-    {
-        return $this->primary_role === 'parent';
+        return $query->where('is_active', true);
     }
 }
