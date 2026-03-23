@@ -278,12 +278,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, watch } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Components/Layout/AppLayout.vue'
 import Button from '@/Components/Common/Button.vue'
 import Input from '@/Components/Forms/Input.vue'
 import Modal from '@/Components/Common/Modal.vue'
+import Swal from 'sweetalert2'
 import $ from 'jquery'
 import 'datatables.net'
 import axios from 'axios'
@@ -306,6 +307,35 @@ const filters = reactive({
   search: '',
   is_active: ''
 })
+
+// Watch for flash messages
+const page = usePage()
+watch(() => page.props.flash, (flash) => {
+  if (flash?.success) {
+    Swal.fire({
+      icon: 'success',
+      title: 'Success!',
+      text: flash.success,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+    })
+  }
+  if (flash?.error) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error!',
+      text: flash.error,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 5000,
+      timerProgressBar: true,
+    })
+  }
+}, { immediate: true, deep: true })
 
 // Helper functions
 const getStatusClass = (isActive) => {

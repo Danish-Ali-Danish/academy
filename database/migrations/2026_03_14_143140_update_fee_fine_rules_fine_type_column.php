@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -11,10 +12,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('role_permissions', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
-        });
+        // Workaround for modifying enum columns in older Laravel / Doctrine DBAL
+        DB::statement("ALTER TABLE fee_fine_rules MODIFY COLUMN fine_type VARCHAR(50) DEFAULT 'fixed'");
     }
 
     /**
@@ -22,6 +21,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('role_permissions');
+        DB::statement("ALTER TABLE fee_fine_rules MODIFY COLUMN fine_type ENUM('fixed', 'percentage') DEFAULT 'fixed'");
     }
 };

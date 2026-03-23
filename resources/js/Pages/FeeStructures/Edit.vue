@@ -40,9 +40,9 @@
 
               <div>
                 <label for="class_id" class="block text-sm font-medium text-gray-700 mb-2">Class <span class="text-red-500">*</span></label>
-                <select id="class_id" v-model="form.class_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required>
-                  <option value="">Select Class</option>
-                  <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.class_name }}</option>
+                <select id="class_id" v-model="form.class_id" :disabled="!form.branch_id || loadingClasses" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-100" required>
+                  <option value="">{{ loadingClasses ? 'Loading Classes...' : 'Select Class' }}</option>
+                  <option v-for="c in availableClasses" :key="c.id" :value="c.id">{{ c.class_name }}</option>
                 </select>
                 <p v-if="form.errors.class_id" class="mt-1 text-sm text-red-600">{{ form.errors.class_id }}</p>
               </div>
@@ -100,17 +100,23 @@
 </template>
 
 <script setup>
-import { useForm } from '@inertiajs/vue3'
+import { ref, watch, onMounted } from 'vue'
+import { useForm, usePage } from '@inertiajs/vue3'
+import axios from 'axios'
 import AppLayout from '@/Components/Layout/AppLayout.vue'
 import Button from '@/Components/Common/Button.vue'
+import Swal from 'sweetalert2'
 
 const props = defineProps({
   feeStructure: { type: Object, required: true },
   academicYears: Array,
   branches: Array,
-  classes: Array,
   feeTypes: Array,
+  errors: Object,
 })
+
+const availableClasses = ref([])
+const loadingClasses = ref(false)
 
 const form = useForm({
   academic_year_id: props.feeStructure.academic_year_id,
@@ -124,9 +130,97 @@ const form = useForm({
   is_active: props.feeStructure.is_active ?? true,
 })
 
+const fetchClasses = async (branchId, isInit = false) => {
+  if (!isInit) {
+    form.class_id = '' // Reset class selection
+  }
+  availableClasses.value = []
+  
+  if (branchId) {
+    loadingClasses.value = true
+    try {
+      const response = await axios.get(route('branches.get-classes', branchId))
+      availableClasses.value = response.data
+    } catch (error) {
+      console.error('Failed to fetch classes:', error)
+      Swal.fire({
+        icon: 'error',
+        title: 'Error!',
+        text: 'Failed to load classes for the selected branch.',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      })
+    } finally {
+      loadingClasses.value = false
+    }
+  }
+}
+
+// Watch for branch changes to fetch corresponding classes
+watch(() => form.branch_id, (newBranchId) => {
+  fetchClasses(newBranchId)
+})
+
+onMounted(() => {
+  if (form.branch_id) {
+    fetchClasses(form.branch_id, true)
+  }
+})
+
+// Watch for flash messages and validation errors
+const page = usePage()
+watch(() => page.props.flash, (flash) => {
+  if (flash?.error) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error!',
+      text: flash.error,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 5000,
+      timerProgressBar: true,
+    })
+  }
+  if (flash?.success) {
+    Swal.fire({
+      icon: 'success',
+      title: 'Success!',
+      text: flash.success,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+    })
+  }
+}, { immediate: true, deep: true })
+
+// Watch for validation errors and show SweetAlert
+watch(() => form.errors, (errors) => {
+  if (Object.keys(errors).length > 0) {
+    const errorMessages = Object.values(errors).join('<br>')
+    Swal.fire({
+      icon: 'error',
+      title: 'Validation Error!',
+      html: errorMessages,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 5000,
+      timerProgressBar: true,
+    })
+  }
+}, { deep: true })
+
 const submit = () => {
   form.put(route('fee-structures.update', props.feeStructure.id), {
     preserveScroll: true,
+    onSuccess: () => {
+      form.reset()
+    },
   })
 }
 </script>

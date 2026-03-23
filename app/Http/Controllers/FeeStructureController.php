@@ -29,13 +29,11 @@ class FeeStructureController extends Controller
     {
         $academicYears = AcademicYear::select('id', 'year_name')->orderBy('start_date', 'desc')->get();
         $branches = Branch::active()->select('id', 'branch_name')->orderBy('branch_name')->get();
-        $classes = Classes::active()->ordered()->select('id', 'class_name')->get();
         $feeTypes = FeeType::select('id', 'fee_name')->orderBy('fee_name')->get();
 
         return Inertia::render('FeeStructures/Create', [
             'academicYears' => $academicYears,
             'branches'      => $branches,
-            'classes'       => $classes,
             'feeTypes'      => $feeTypes,
         ]);
     }
@@ -44,7 +42,6 @@ class FeeStructureController extends Controller
     {
         $academicYears = AcademicYear::select('id', 'year_name')->orderBy('start_date', 'desc')->get();
         $branches = Branch::active()->select('id', 'branch_name')->orderBy('branch_name')->get();
-        $classes = Classes::active()->ordered()->select('id', 'class_name')->get();
         $feeTypes = FeeType::select('id', 'fee_name')->orderBy('fee_name')->get();
 
         return Inertia::render('FeeStructures/Edit', [
@@ -62,7 +59,6 @@ class FeeStructureController extends Controller
             ],
             'academicYears' => $academicYears,
             'branches'      => $branches,
-            'classes'       => $classes,
             'feeTypes'      => $feeTypes,
         ]);
     }
@@ -168,51 +164,95 @@ class FeeStructureController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'branch_id'        => 'required|exists:branches,id',
-            'class_id'         => 'required|exists:classes,id',
-            'fee_type_id'      => 'required|exists:fee_types,id',
-            'amount'           => 'required|numeric|min:0',
-            'due_day'          => 'nullable|integer|min:1|max:31',
-            'effective_from'   => 'nullable|date',
-            'effective_to'     => 'nullable|date|after_or_equal:effective_from',
-            'is_active'        => 'boolean',
-        ]);
+        try {
+            $validated = $request->validate([
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'branch_id'        => 'required|exists:branches,id',
+                'class_id'         => 'required|exists:classes,id',
+                'fee_type_id'      => 'required|exists:fee_types,id',
+                'amount'           => 'required|numeric|min:0',
+                'due_day'          => 'nullable|integer|min:1|max:31',
+                'effective_from'   => 'nullable|date',
+                'effective_to'     => 'nullable|date|after_or_equal:effective_from',
+                'is_active'        => 'boolean',
+            ], [
+                'academic_year_id.required' => 'Please select an academic year',
+                'branch_id.required' => 'Please select a branch',
+                'class_id.required' => 'Please select a class',
+                'fee_type_id.required' => 'Please select a fee type',
+                'amount.required' => 'Amount is required',
+                'amount.numeric' => 'Amount must be a valid number',
+                'due_day.integer' => 'Due day must be a number',
+                'effective_to.after_or_equal' => 'Effective to date must be equal to or after effective from date',
+            ]);
 
-        $validated['created_by'] = auth()->id();
+            $validated['created_by'] = auth()->id();
 
-        FeeStructure::create($validated);
+            FeeStructure::create($validated);
 
-        return redirect()->route('fee-structures.index')
-            ->with('success', 'Fee structure created successfully!');
+            return redirect()->route('fee-structures.index')
+                ->with('success', 'Fee structure created successfully!');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('error', 'Please correct the errors below.');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Failed to create fee structure: ' . $e->getMessage());
+        }
     }
 
     public function update(Request $request, FeeStructure $feeStructure)
     {
-        $validated = $request->validate([
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'branch_id'        => 'required|exists:branches,id',
-            'class_id'         => 'required|exists:classes,id',
-            'fee_type_id'      => 'required|exists:fee_types,id',
-            'amount'           => 'required|numeric|min:0',
-            'due_day'          => 'nullable|integer|min:1|max:31',
-            'effective_from'   => 'nullable|date',
-            'effective_to'     => 'nullable|date|after_or_equal:effective_from',
-            'is_active'        => 'boolean',
-        ]);
+        try {
+            $validated = $request->validate([
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'branch_id'        => 'required|exists:branches,id',
+                'class_id'         => 'required|exists:classes,id',
+                'fee_type_id'      => 'required|exists:fee_types,id',
+                'amount'           => 'required|numeric|min:0',
+                'due_day'          => 'nullable|integer|min:1|max:31',
+                'effective_from'   => 'nullable|date',
+                'effective_to'     => 'nullable|date|after_or_equal:effective_from',
+                'is_active'        => 'boolean',
+            ], [
+                'academic_year_id.required' => 'Please select an academic year',
+                'branch_id.required' => 'Please select a branch',
+                'class_id.required' => 'Please select a class',
+                'fee_type_id.required' => 'Please select a fee type',
+                'amount.required' => 'Amount is required',
+                'amount.numeric' => 'Amount must be a valid number',
+                'due_day.integer' => 'Due day must be a number',
+                'effective_to.after_or_equal' => 'Effective to date must be equal to or after effective from date',
+            ]);
 
-        $feeStructure->update($validated);
+            $feeStructure->update($validated);
 
-        return redirect()->route('fee-structures.index')
-            ->with('success', 'Fee structure updated successfully!');
+            return redirect()->route('fee-structures.index')
+                ->with('success', 'Fee structure updated successfully!');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('error', 'Please correct the errors below.');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Failed to update fee structure: ' . $e->getMessage());
+        }
     }
 
     public function destroy(FeeStructure $feeStructure)
     {
-        $feeStructure->delete();
+        try {
+            $feeStructure->delete();
 
-        return back()->with('success', 'Fee structure deleted successfully!');
+            return back()->with('success', 'Fee structure deleted successfully!');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to delete fee structure: ' . $e->getMessage());
+        }
     }
 
     public function dropdown(Request $request)
