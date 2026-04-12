@@ -30,11 +30,13 @@ class FeeStructureController extends Controller
         $academicYears = AcademicYear::select('id', 'year_name')->orderBy('start_date', 'desc')->get();
         $branches = Branch::active()->select('id', 'branch_name')->orderBy('branch_name')->get();
         $feeTypes = FeeType::select('id', 'fee_name')->orderBy('fee_name')->get();
+        $existingStructures = FeeStructure::select('id', 'academic_year_id', 'branch_id', 'class_id', 'fee_type_id')->get();
 
         return Inertia::render('FeeStructures/Create', [
-            'academicYears' => $academicYears,
-            'branches'      => $branches,
-            'feeTypes'      => $feeTypes,
+            'academicYears'      => $academicYears,
+            'branches'           => $branches,
+            'feeTypes'           => $feeTypes,
+            'existingStructures' => $existingStructures,
         ]);
     }
 
@@ -186,6 +188,19 @@ class FeeStructureController extends Controller
                 'effective_to.after_or_equal' => 'Effective to date must be equal to or after effective from date',
             ]);
 
+            // Check for duplicate before creating
+            $exists = FeeStructure::where('academic_year_id', $validated['academic_year_id'])
+                ->where('branch_id', $validated['branch_id'])
+                ->where('class_id', $validated['class_id'])
+                ->where('fee_type_id', $validated['fee_type_id'])
+                ->exists();
+
+            if ($exists) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'A fee structure already exists for this combination (Academic Year + Branch + Class + Fee Type). Please edit the existing record instead.');
+            }
+
             $validated['created_by'] = auth()->id();
 
             FeeStructure::create($validated);
@@ -252,6 +267,38 @@ class FeeStructureController extends Controller
             return back()->with('success', 'Fee structure deleted successfully!');
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to delete fee structure: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Sync a single fee structure to all currently enrolled students in its class.
+     * Called manually (e.g. for existing fee structures created before this feature).
+     */
+    public function syncToStudents(FeeStructure $feeStructure)
+    {
+        try {
+            $count = $feeStructure->syncToEnrolledStudents();
+            return back()->with('success', "Fee structure synced to {$count} students successfully!");
+        } catch (\Exception $e) {
+            return back()->with('error', 'Sync failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Sync ALL active fee structures to their enrolled students.
+     * Run once after deploying this feature to backfill existing data.
+     */
+    public function syncAllToStudents()
+    {
+        try {
+            $structures = FeeStructure::active()->get();
+            $total = 0;
+            foreach ($structures as $structure) {
+                $total += $structure->syncToEnrolledStudents();
+            }
+            return back()->with('success', "All fee structures synced! {$total} student-fee assignments created/updated.");
+        } catch (\Exception $e) {
+            return back()->with('error', 'Sync all failed: ' . $e->getMessage());
         }
     }
 

@@ -27,7 +27,7 @@
                 <label for="student_id" class="block text-sm font-medium text-gray-700 mb-2">Student <span class="text-red-500">*</span></label>
                 <select id="student_id" v-model="selectedStudentId" @change="onStudentChange" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required>
                   <option value="">Select Student</option>
-                  <option v-for="s in students" :key="s.id" :value="s.id">{{ s.student_name }} ({{ s.admission_no }})</option>
+                  <option v-for="s in students" :key="s.id" :value="s.id">{{ s.student_name }} (Roll: {{ s.roll_no || 'N/A' }}, Adm: {{ s.admission_no || 'N/A' }})</option>
                 </select>
               </div>
 

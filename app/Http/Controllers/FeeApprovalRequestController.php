@@ -28,7 +28,7 @@ class FeeApprovalRequestController extends Controller
 
     public function create()
     {
-        $students = Student::select('id', 'student_name', 'admission_no')
+        $students = Student::select('id', 'student_name', 'admission_no', 'roll_no')
             ->orderBy('student_name')
             ->get();
 
@@ -47,7 +47,7 @@ class FeeApprovalRequestController extends Controller
     {
         $feeApprovalRequest->load(['studentEnrollment.student', 'voucher', 'requestedBy', 'reviewedBy']);
 
-        $students = Student::select('id', 'student_name', 'admission_no')
+        $students = Student::select('id', 'student_name', 'admission_no', 'roll_no')
             ->orderBy('student_name')
             ->get();
 

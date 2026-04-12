@@ -24,6 +24,22 @@ class StudentEnrollment extends Model
         'leaving_date'   => 'date',
     ];
 
+    // ─── Boot: Auto-assign fee structures on new enrollment ──────────────────────
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::created(function (StudentEnrollment $enrollment) {
+            // Only assign for active enrollments
+            if ($enrollment->status === 'active') {
+                $enrollment->assignFeeStructures();
+            }
+        });
+    }
+
+    // ─── Relationships ───────────────────────────────────────────────────────────
+
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
@@ -59,6 +75,11 @@ class StudentEnrollment extends Model
         return $this->hasMany(StudentFeeConcession::class);
     }
 
+    public function studentFeeStructures(): HasMany
+    {
+        return $this->hasMany(StudentFeeStructure::class);
+    }
+
     public function ledger(): HasMany
     {
         return $this->hasMany(StudentLedger::class);
@@ -89,8 +110,51 @@ class StudentEnrollment extends Model
         return $this->hasMany(StudentScholarship::class);
     }
 
+    // ─── Scopes ──────────────────────────────────────────────────────────────────
+
     public function scopeActive($query)
     {
         return $query->where('status', 'active');
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Assign all active fee structures for this student's class to this enrollment.
+     * Called automatically on create. Can also be called manually to re-sync.
+     * Returns count of newly created assignments.
+     */
+    public function assignFeeStructures(): int
+    {
+        // Load classSection with branchClass to get class_id
+        $this->loadMissing('classSection.branchClass');
+        $classId = $this->classSection?->branchClass?->class_id;
+
+        if (!$classId) {
+            return 0;
+        }
+
+        $feeStructureIds = FeeStructure::active()
+            ->where('academic_year_id', $this->academic_year_id)
+            ->where('branch_id', $this->branch_id)
+            ->where('class_id', $classId)
+            ->pluck('id');
+
+        $count = 0;
+        foreach ($feeStructureIds as $feeStructureId) {
+            StudentFeeStructure::firstOrCreate(
+                [
+                    'student_enrollment_id' => $this->id,
+                    'fee_structure_id'      => $feeStructureId,
+                ],
+                [
+                    'is_active'  => true,
+                    'created_by' => auth()->id(),
+                ]
+            );
+            $count++;
+        }
+
+        return $count;
     }
 }

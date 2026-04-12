@@ -128,7 +128,7 @@ class FeeVoucherController extends Controller
     private function getFormData(): array
     {
         return [
-            'enrollments' => \App\Models\StudentEnrollment::with('student:id,student_name,admission_no')
+            'enrollments' => \App\Models\StudentEnrollment::with('student:id,student_name,admission_no,roll_no')
                 ->select('id', 'student_id', 'academic_year_id')
                 ->where('status', 'active')
                 ->get(),
@@ -227,7 +227,7 @@ class FeeVoucherController extends Controller
      */
     private function getMobileVouchers(Request $request)
     {
-        $query = FeeVoucher::with(['studentEnrollment.student:id,student_name,admission_no', 'feeType', 'academicYear']);
+        $query = FeeVoucher::with(['studentEnrollment.student:id,student_name,admission_no,roll_no', 'feeType', 'academicYear']);
 
         if ($request->filled('search')) {
             $search = $request->search;

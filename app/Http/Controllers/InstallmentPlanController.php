@@ -143,6 +143,14 @@ class InstallmentPlanController extends Controller
             'is_active'              => 'boolean',
         ]);
 
+        // Check for duplicate plan name
+        $exists = InstallmentPlan::where('plan_name', $validated['plan_name'])->exists();
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'An installment plan with the name "' . $validated['plan_name'] . '" already exists. Please use a different name.');
+        }
+
         $validated['created_by'] = auth()->id();
 
         InstallmentPlan::create($validated);
@@ -160,6 +168,16 @@ class InstallmentPlanController extends Controller
             'description'            => 'nullable|string',
             'is_active'              => 'boolean',
         ]);
+
+        // Check for duplicate plan name (excluding current record)
+        $exists = InstallmentPlan::where('plan_name', $validated['plan_name'])
+            ->where('id', '!=', $installmentPlan->id)
+            ->exists();
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'An installment plan with the name "' . $validated['plan_name'] . '" already exists. Please use a different name.');
+        }
 
         $installmentPlan->update($validated);
 

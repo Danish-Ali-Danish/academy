@@ -179,12 +179,21 @@
 </template>
 
 <script setup>
-import { Link, useForm } from '@inertiajs/vue3'
+import { Link, useForm, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Components/Layout/AppLayout.vue'
 import Button from '@/Components/Common/Button.vue'
 import Input from '@/Components/Forms/Input.vue'
 import Textarea from '@/Components/Forms/Textarea.vue'
 import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
+import Swal from 'sweetalert2'
+import { watch } from 'vue'
+
+const props = defineProps({
+  existingFeeTypes: {
+    type: Array,
+    default: () => [],
+  },
+})
 
 const form = useForm({
   fee_name: '',
@@ -196,7 +205,39 @@ const form = useForm({
   is_active: true
 })
 
+// Watch for flash messages
+const page = usePage()
+watch(() => page.props.flash, (flash) => {
+  if (flash?.error) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error!',
+      text: flash.error,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 5000,
+      timerProgressBar: true,
+    })
+  }
+}, { immediate: true, deep: true })
+
 const submit = () => {
+  // Client-side duplicate check
+  const isDuplicate = props.existingFeeTypes?.some(
+    ft => ft.fee_name.toLowerCase() === form.fee_name.toLowerCase()
+  )
+
+  if (isDuplicate) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Duplicate Fee Type!',
+      html: `A fee type with the name "<b>${form.fee_name}</b>" already exists.<br>Please use a different name.`,
+      confirmButtonColor: '#3085d6',
+    })
+    return
+  }
+
   form.post(route('fee-types.store'), {
     preserveScroll: true,
     onSuccess: () => {

@@ -188,6 +188,16 @@
               <!-- Actions -->
               <div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                 <button
+                  @click="showConcessionDetails(concession.id)"
+                  class="flex-1 px-3 py-2 text-xs sm:text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                  View
+                </button>
+                <button
                   @click="$inertia.visit(route('student-fee-concessions.edit', concession.id))"
                   class="flex-1 px-3 py-2 text-xs sm:text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
                 >
@@ -244,6 +254,175 @@
 
       </div>
 
+      <!-- Show Details Modal -->
+      <Modal :show="showModal" @close="showModal = false">
+        <template #title>
+          <div class="flex items-center">
+            <div class="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-100 flex items-center justify-center mr-3 sm:mr-4">
+              <svg class="w-5 h-5 sm:w-6 sm:h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+              </svg>
+            </div>
+            <span class="text-base sm:text-lg font-semibold text-gray-900">Fee Concession Details</span>
+          </div>
+        </template>
+
+        <div v-if="loadingDetails" class="flex items-center justify-center py-12">
+          <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600"></div>
+        </div>
+
+        <div v-else-if="concessionDetails" class="space-y-6">
+          <!-- Student Information -->
+          <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+              </svg>
+              Student Information
+            </h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span class="text-gray-500">Name:</span>
+                <p class="font-medium text-gray-900">{{ concessionDetails.student.name }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Father's Name:</span>
+                <p class="font-medium text-gray-900">{{ concessionDetails.student.father_name }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Roll No:</span>
+                <p class="font-medium text-gray-900">{{ concessionDetails.student.roll_no }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Admission No:</span>
+                <p class="font-medium text-gray-900">{{ concessionDetails.student.admission_no }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Class Information -->
+          <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+              </svg>
+              Class Information
+            </h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span class="text-gray-500">Class:</span>
+                <p class="font-medium text-gray-900">{{ concessionDetails.class_info.class_name }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Section:</span>
+                <p class="font-medium text-gray-900">{{ concessionDetails.class_info.section_name }}</p>
+              </div>
+              <div class="col-span-2">
+                <span class="text-gray-500">Academic Year:</span>
+                <p class="font-medium text-gray-900">{{ concessionDetails.class_info.academic_year }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Concession Details -->
+          <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+              </svg>
+              Concession Details
+            </h3>
+            <div class="space-y-3 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-500">Concession Type:</span>
+                <span class="font-medium text-gray-900">{{ concessionDetails.concession_type }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">Fee Type:</span>
+                <span class="font-medium text-gray-900">{{ concessionDetails.fee_type }}</span>
+              </div>
+              <div class="bg-white rounded-lg p-3">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-gray-600">Discount Type:</span>
+                  <span class="font-medium text-gray-900 uppercase">{{ concessionDetails.discount_type }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-gray-600">Discount Value:</span>
+                  <span class="text-xl font-bold text-green-600">
+                    {{ concessionDetails.discount_type === 'percentage' ? concessionDetails.discount_value + '%' : 'Rs. ' + formatAmount(concessionDetails.discount_value) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Validity Period -->
+          <div class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              Validity Period
+            </h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div class="bg-white rounded-lg p-3">
+                <span class="text-xs text-gray-500 block mb-1">Start Date</span>
+                <p class="font-medium text-gray-900">{{ concessionDetails.start_date }}</p>
+              </div>
+              <div class="bg-white rounded-lg p-3">
+                <span class="text-xs text-gray-500 block mb-1">End Date</span>
+                <p class="font-medium text-gray-900">{{ concessionDetails.end_date }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Status & Approval -->
+          <div class="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              Status & Approval
+            </h3>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-gray-600">Status:</span>
+                <span :class="concessionDetails.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'" class="px-2 py-1 text-xs font-medium rounded-full">
+                  {{ concessionDetails.is_active ? 'Active' : 'Inactive' }}
+                </span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Approved By:</span>
+                <span class="font-medium text-gray-900">{{ concessionDetails.approved_by }}</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Created At:</span>
+                <span class="font-medium text-gray-900">{{ concessionDetails.created_at }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Remarks -->
+          <div v-if="concessionDetails.remarks" class="bg-gray-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              Remarks
+            </h3>
+            <p class="text-sm text-gray-700">{{ concessionDetails.remarks }}</p>
+          </div>
+        </div>
+
+        <template #footer>
+          <div class="flex justify-end">
+            <Button variant="secondary" @click="showModal = false" class="shadow-sm hover:shadow-md transition-all text-sm">
+              Close
+            </Button>
+          </div>
+        </template>
+      </Modal>
+
       <!-- Delete Confirmation Modal -->
       <Modal :show="showDeleteModal" @close="showDeleteModal = false">
         <template #title>
@@ -293,11 +472,13 @@ import AppLayout from '@/Components/Layout/AppLayout.vue'
 import Button from '@/Components/Common/Button.vue'
 import Input from '@/Components/Forms/Input.vue'
 import Modal from '@/Components/Common/Modal.vue'
+import Swal from 'sweetalert2'
 import $ from 'jquery'
 import 'datatables.net'
 import axios from 'axios'
 
 // State
+const showModal = ref(false)
 const showDeleteModal = ref(false)
 const deleting = ref(false)
 const concessionToDelete = ref(null)
@@ -309,6 +490,8 @@ const mobileCurrentPage = ref(1)
 const mobileTotalPages = ref(1)
 const mobileTotal = ref(0)
 const mobileOffset = ref(0)
+const concessionDetails = ref(null)
+const loadingDetails = ref(false)
 let table = null
 
 const filters = reactive({
@@ -330,6 +513,43 @@ const formatDate = (dateString) => {
 const formatDiscount = (value, type) => {
   if (value === null || value === undefined) return '—'
   return type === 'percentage' ? `${value}%` : `${value} (fixed)`
+}
+
+const formatAmount = (value) => {
+  if (value === null || value === undefined) return '0'
+  return Number(value).toLocaleString()
+}
+
+// Show concession details
+const showConcessionDetails = async (id) => {
+  loadingDetails.value = true
+  concessionDetails.value = null
+  showModal.value = true
+
+  try {
+    const response = await axios.get(route('student-fee-concessions.show', id), {
+      headers: { 'Accept': 'application/json' }
+    })
+    concessionDetails.value = response.data
+  } catch (error) {
+    console.error('Error loading concession details:', error)
+    Swal.fire({
+      icon: 'error',
+      title: 'Error!',
+      text: 'Failed to load concession details',
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000
+    })
+  } finally {
+    loadingDetails.value = false
+  }
+}
+
+// Global handlers
+window.showConcession = (concession) => {
+  showConcessionDetails(concession.id)
 }
 
 // Load mobile data
@@ -397,7 +617,7 @@ onMounted(() => {
     ],
     pageLength: 10,
     lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-    order: [[1, 'asc']],
+    order: [[0, 'desc']],
     searching: true,
     info: true,
     responsive: true,

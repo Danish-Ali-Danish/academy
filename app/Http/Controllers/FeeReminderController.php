@@ -27,7 +27,7 @@ class FeeReminderController extends Controller
 
     public function create()
     {
-        $students = Student::select('id', 'student_name', 'admission_no')
+        $students = Student::select('id', 'student_name', 'admission_no', 'roll_no')
             ->orderBy('student_name')
             ->get();
 
@@ -40,7 +40,7 @@ class FeeReminderController extends Controller
     {
         $feeReminder->load(['studentEnrollment.student', 'sentBy']);
 
-        $students = Student::select('id', 'student_name', 'admission_no')
+        $students = Student::select('id', 'student_name', 'admission_no', 'roll_no')
             ->orderBy('student_name')
             ->get();
 

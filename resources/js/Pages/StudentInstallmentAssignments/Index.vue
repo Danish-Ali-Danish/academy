@@ -187,6 +187,16 @@
               <!-- Actions -->
               <div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                 <button
+                  @click="showAssignmentDetails(assignment.id)"
+                  class="flex-1 px-3 py-2 text-xs sm:text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                  View
+                </button>
+                <button
                   @click="$inertia.visit(route('student-installment-assignments.edit', assignment.id))"
                   class="flex-1 px-3 py-2 text-xs sm:text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
                 >
@@ -243,6 +253,233 @@
 
       </div>
 
+      <!-- Show Details Modal -->
+      <Modal :show="showModal" @close="showModal = false">
+        <template #title>
+          <div class="flex items-center">
+            <div class="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-100 flex items-center justify-center mr-3 sm:mr-4">
+              <svg class="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+            </div>
+            <span class="text-base sm:text-lg font-semibold text-gray-900">Installment Assignment Details</span>
+          </div>
+        </template>
+
+        <div v-if="loadingDetails" class="flex items-center justify-center py-12">
+          <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+        </div>
+
+        <div v-else-if="assignmentDetails" class="space-y-6">
+          <!-- Student Information -->
+          <div class="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+              </svg>
+              Student Information
+            </h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span class="text-gray-500">Name:</span>
+                <p class="font-medium text-gray-900">{{ assignmentDetails.student.name }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Father's Name:</span>
+                <p class="font-medium text-gray-900">{{ assignmentDetails.student.father_name }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Roll No:</span>
+                <p class="font-medium text-gray-900">{{ assignmentDetails.student.roll_no }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Admission No:</span>
+                <p class="font-medium text-gray-900">{{ assignmentDetails.student.admission_no }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Class Information -->
+          <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+              </svg>
+              Class Information
+            </h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span class="text-gray-500">Class:</span>
+                <p class="font-medium text-gray-900">{{ assignmentDetails.class_info.class_name }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Section:</span>
+                <p class="font-medium text-gray-900">{{ assignmentDetails.class_info.section_name }}</p>
+              </div>
+              <div class="col-span-2">
+                <span class="text-gray-500">Academic Year:</span>
+                <p class="font-medium text-gray-900">{{ assignmentDetails.class_info.academic_year }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Plan Details -->
+          <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+              Plan Details
+            </h3>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-500">Plan Name:</span>
+                <span class="font-medium text-gray-900">{{ assignmentDetails.plan.plan_name }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">Fee Type:</span>
+                <span class="font-medium text-gray-900">{{ assignmentDetails.plan.fee_type }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">Total Installments:</span>
+                <span class="font-medium text-gray-900">{{ assignmentDetails.plan.total_installments }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fee Breakdown (concession info) -->
+          <div v-if="assignmentDetails.fee_breakdown?.has_concession" class="bg-green-50 border border-green-200 rounded-lg p-3">
+            <h3 class="text-xs font-semibold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+              </svg>
+              Fee Concession Applied
+            </h3>
+            <div class="grid grid-cols-3 gap-2 text-center text-xs">
+              <div>
+                <p class="text-gray-500">Original Fee</p>
+                <p class="font-bold text-gray-700 line-through">Rs {{ formatAmount(assignmentDetails.fee_breakdown.base_amount) }}</p>
+              </div>
+              <div>
+                <p class="text-green-600">Concession (-)</p>
+                <p class="font-bold text-green-700">Rs {{ formatAmount(assignmentDetails.fee_breakdown.concession_amount) }}</p>
+                <p class="text-[10px] text-green-600 mt-0.5">{{ assignmentDetails.fee_breakdown.concession_detail }}</p>
+              </div>
+              <div>
+                <p class="text-blue-600">Net Amount</p>
+                <p class="font-bold text-blue-700 text-sm">Rs {{ formatAmount(assignmentDetails.total_amount) }}</p>
+              </div>
+            </div>
+          </div>
+          <div v-else class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-gray-500">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            No concession applied — Original fee structure amount used
+          </div>
+
+          <!-- Payment Summary -->
+          <div class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+              </svg>
+              Payment Summary
+            </h3>
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div class="bg-white rounded-lg p-3">
+                <p class="text-xs text-gray-500 mb-1">Total Amount</p>
+                <p class="text-lg font-bold text-gray-900">Rs {{ formatAmount(assignmentDetails.total_amount) }}</p>
+              </div>
+              <div class="bg-green-100 rounded-lg p-3">
+                <p class="text-xs text-green-600 mb-1">Paid</p>
+                <p class="text-lg font-bold text-green-700">Rs {{ formatAmount(assignmentDetails.amount_paid) }}</p>
+              </div>
+              <div class="bg-red-100 rounded-lg p-3">
+                <p class="text-xs text-red-600 mb-1">Remaining</p>
+                <p class="text-lg font-bold text-red-700">Rs {{ formatAmount(assignmentDetails.remaining_amount) }}</p>
+              </div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-amber-200">
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Status:</span>
+                <span :class="getStatusClass(assignmentDetails.status)" class="px-2 py-1 text-xs font-medium rounded-full capitalize">
+                  {{ assignmentDetails.status }}
+                </span>
+              </div>
+              <div class="flex justify-between text-sm mt-2">
+                <span class="text-gray-600">Approved By:</span>
+                <span class="font-medium text-gray-900">{{ assignmentDetails.approved_by }}</span>
+              </div>
+              <div class="flex justify-between text-sm mt-2">
+                <span class="text-gray-600">Created At:</span>
+                <span class="font-medium text-gray-900">{{ assignmentDetails.created_at }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div v-if="assignmentDetails.notes" class="bg-gray-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              Notes
+            </h3>
+            <p class="text-sm text-gray-700">{{ assignmentDetails.notes }}</p>
+          </div>
+
+          <!-- Installment Schedule Table -->
+          <div>
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              Installment Schedule (Kist Plan)
+            </h3>
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gradient-to-r from-indigo-50 to-blue-50">
+                  <tr>
+                    <th class="px-3 py-3 text-xs font-semibold text-gray-700 uppercase text-center">#</th>
+                    <th class="px-3 py-3 text-xs font-semibold text-gray-700 uppercase text-center">Amount</th>
+                    <th class="px-3 py-3 text-xs font-semibold text-gray-700 uppercase text-center">Due Date</th>
+                    <th class="px-3 py-3 text-xs font-semibold text-gray-700 uppercase text-center">Paid</th>
+                    <th class="px-3 py-3 text-xs font-semibold text-gray-700 uppercase text-center">Remaining</th>
+                    <th class="px-3 py-3 text-xs font-semibold text-gray-700 uppercase text-center">Payment Date</th>
+                    <th class="px-3 py-3 text-xs font-semibold text-gray-700 uppercase text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-100">
+                  <tr v-for="kist in assignmentDetails.schedule" :key="kist.kist_number" class="hover:bg-gray-50">
+                    <td class="px-3 py-3 text-sm text-center font-medium text-gray-900">{{ kist.kist_number }}</td>
+                    <td class="px-3 py-3 text-sm text-center font-medium text-gray-900">Rs {{ formatAmount(kist.kist_amount) }}</td>
+                    <td class="px-3 py-3 text-sm text-center text-gray-600">{{ kist.due_date }}</td>
+                    <td class="px-3 py-3 text-sm text-center font-medium text-green-600">Rs {{ formatAmount(kist.paid_amount) }}</td>
+                    <td class="px-3 py-3 text-sm text-center font-medium text-red-600">Rs {{ formatAmount(kist.remaining) }}</td>
+                    <td class="px-3 py-3 text-sm text-center text-gray-600">{{ kist.payment_date }}</td>
+                    <td class="px-3 py-3 text-center">
+                      <span :class="getKistStatusClass(kist.status)" class="px-2 py-1 text-xs font-medium rounded-full capitalize">
+                        {{ kist.status }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <template #footer>
+          <div class="flex justify-end">
+            <Button variant="secondary" @click="showModal = false" class="shadow-sm hover:shadow-md transition-all text-sm">
+              Close
+            </Button>
+          </div>
+        </template>
+      </Modal>
+
       <!-- Delete Confirmation Modal -->
       <Modal :show="showDeleteModal" @close="showDeleteModal = false">
         <template #title>
@@ -292,11 +529,13 @@ import AppLayout from '@/Components/Layout/AppLayout.vue'
 import Button from '@/Components/Common/Button.vue'
 import Input from '@/Components/Forms/Input.vue'
 import Modal from '@/Components/Common/Modal.vue'
+import Swal from 'sweetalert2'
 import $ from 'jquery'
 import 'datatables.net'
 import axios from 'axios'
 
 // State
+const showModal = ref(false)
 const showDeleteModal = ref(false)
 const deleting = ref(false)
 const assignmentToDelete = ref(null)
@@ -308,6 +547,8 @@ const mobileCurrentPage = ref(1)
 const mobileTotalPages = ref(1)
 const mobileTotal = ref(0)
 const mobileOffset = ref(0)
+const assignmentDetails = ref(null)
+const loadingDetails = ref(false)
 let table = null
 
 const filters = reactive({
@@ -323,9 +564,49 @@ const getStatusClass = (status) => {
   return 'bg-gray-100 text-gray-800'
 }
 
+const getKistStatusClass = (status) => {
+  if (status === 'paid') return 'bg-green-100 text-green-800'
+  if (status === 'pending') return 'bg-yellow-100 text-yellow-800'
+  if (status === 'overdue') return 'bg-red-100 text-red-800'
+  if (status === 'partial') return 'bg-blue-100 text-blue-800'
+  return 'bg-gray-100 text-gray-800'
+}
+
 const formatAmount = (value) => {
   if (value === null || value === undefined) return '0'
   return Number(value).toLocaleString()
+}
+
+// Show assignment details
+const showAssignmentDetails = async (id) => {
+  loadingDetails.value = true
+  assignmentDetails.value = null
+  showModal.value = true
+
+  try {
+    const response = await axios.get(route('student-installment-assignments.show', id), {
+      headers: { 'Accept': 'application/json' }
+    })
+    assignmentDetails.value = response.data
+  } catch (error) {
+    console.error('Error loading assignment details:', error)
+    Swal.fire({
+      icon: 'error',
+      title: 'Error!',
+      text: 'Failed to load assignment details',
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000
+    })
+  } finally {
+    loadingDetails.value = false
+  }
+}
+
+// Global handler
+window.showAssignment = (assignment) => {
+  showAssignmentDetails(assignment.id)
 }
 
 // Load mobile data
@@ -393,7 +674,7 @@ onMounted(() => {
     ],
     pageLength: 10,
     lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-    order: [[3, 'desc']],
+    order: [[0, 'desc']],
     searching: true,
     info: true,
     responsive: true,

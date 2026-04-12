@@ -88,6 +88,15 @@ class ScholarshipController extends Controller
             'criteria' => 'nullable|string|max:255', 'max_recipients' => 'nullable|integer|min:1',
             'is_renewable' => 'boolean', 'description' => 'nullable|string', 'is_active' => 'boolean',
         ]);
+
+        // Check for duplicate scholarship name
+        $exists = Scholarship::where('scholarship_name', $validated['scholarship_name'])->exists();
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'A scholarship with the name "' . $validated['scholarship_name'] . '" already exists. Please use a different name.');
+        }
+
         $validated['created_by'] = auth()->id();
         Scholarship::create($validated);
         return redirect()->route('scholarships.index')->with('success', 'Scholarship created successfully!');
@@ -102,6 +111,17 @@ class ScholarshipController extends Controller
             'criteria' => 'nullable|string|max:255', 'max_recipients' => 'nullable|integer|min:1',
             'is_renewable' => 'boolean', 'description' => 'nullable|string', 'is_active' => 'boolean',
         ]);
+
+        // Check for duplicate scholarship name (excluding current record)
+        $exists = Scholarship::where('scholarship_name', $validated['scholarship_name'])
+            ->where('id', '!=', $scholarship->id)
+            ->exists();
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'A scholarship with the name "' . $validated['scholarship_name'] . '" already exists. Please use a different name.');
+        }
+
         $scholarship->update($validated);
         return redirect()->route('scholarships.index')->with('success', 'Scholarship updated successfully!');
     }

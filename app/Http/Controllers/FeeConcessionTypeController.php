@@ -145,6 +145,14 @@ class FeeConcessionTypeController extends Controller
             'is_active'              => 'boolean',
         ]);
 
+        // Check for duplicate concession name
+        $exists = FeeConcessionType::where('concession_name', $validated['concession_name'])->exists();
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'A fee concession type with the name "' . $validated['concession_name'] . '" already exists. Please use a different name.');
+        }
+
         FeeConcessionType::create($validated);
 
         return redirect()->route('fee-concession-types.index')
@@ -161,6 +169,16 @@ class FeeConcessionTypeController extends Controller
             'description'            => 'nullable|string',
             'is_active'              => 'boolean',
         ]);
+
+        // Check for duplicate concession name (excluding current record)
+        $exists = FeeConcessionType::where('concession_name', $validated['concession_name'])
+            ->where('id', '!=', $feeConcessionType->id)
+            ->exists();
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'A fee concession type with the name "' . $validated['concession_name'] . '" already exists. Please use a different name.');
+        }
 
         $feeConcessionType->update($validated);
 

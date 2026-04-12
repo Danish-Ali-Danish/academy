@@ -22,54 +22,52 @@
           <form @submit.prevent="submit">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
 
-              <!-- Student (cascading) -->
-              <div>
-                <label for="student_id" class="block text-sm font-medium text-gray-700 mb-2">Student <span class="text-red-500">*</span></label>
-                <select id="student_id" v-model="selectedStudentId" @change="onStudentChange" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required>
-                  <option value="">Select Student</option>
-                  <option v-for="s in students" :key="s.id" :value="s.id">{{ s.student_name }} ({{ s.admission_no }})</option>
-                </select>
+              <!-- Student (read-only) -->
+              <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Student</label>
+                <StudentRollSearch 
+                  v-model="selectedStudentId" 
+                  :initial-student="selectedStudent"
+                  disabled
+                />
               </div>
 
-              <!-- Enrollment (cascading) -->
+              <!-- Enrollment (read-only) -->
               <div>
-                <label for="student_enrollment_id" class="block text-sm font-medium text-gray-700 mb-2">Enrollment <span class="text-red-500">*</span></label>
-                <select id="student_enrollment_id" v-model="form.student_enrollment_id" :disabled="!selectedStudentId || loadingEnrollments" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" :class="{ 'border-red-500': form.errors.student_enrollment_id }" required>
-                  <option value="">{{ loadingEnrollments ? 'Loading enrollments...' : 'Select Enrollment' }}</option>
-                  <option v-for="e in enrollmentOptions" :key="e.id" :value="e.id">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Enrollment</label>
+                <select disabled class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm bg-gray-100 cursor-not-allowed">
+                  <option v-for="e in initialEnrollments" :key="e.id" :value="e.id" :selected="e.id == assignment.student_enrollment_id">
                     {{ e.class_name }} – {{ e.section_name }} ({{ e.academic_year }})
                   </option>
                 </select>
-                <p v-if="form.errors.student_enrollment_id" class="mt-1 text-sm text-red-600">{{ form.errors.student_enrollment_id }}</p>
               </div>
 
-              <!-- Installment Plan -->
+              <!-- Installment Plan (read-only) -->
               <div>
-                <label for="installment_plan_id" class="block text-sm font-medium text-gray-700 mb-2">Installment Plan <span class="text-red-500">*</span></label>
-                <select id="installment_plan_id" v-model="form.installment_plan_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" :class="{ 'border-red-500': form.errors.installment_plan_id }" required>
-                  <option value="">Select Plan</option>
-                  <option v-for="p in installmentPlans" :key="p.id" :value="p.id">{{ p.plan_name }} ({{ p.total_installments }} installments)</option>
-                </select>
-                <p v-if="form.errors.installment_plan_id" class="mt-1 text-sm text-red-600">{{ form.errors.installment_plan_id }}</p>
-              </div>
-
-              <!-- Fee Voucher -->
-              <div>
-                <label for="fee_voucher_id" class="block text-sm font-medium text-gray-700 mb-2">
-                  Fee Voucher
-                  <span class="ml-1 text-xs text-gray-400 font-normal">(optional)</span>
-                </label>
-                <select id="fee_voucher_id" v-model="form.fee_voucher_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                  <option value="">Select Voucher (optional)</option>
-                  <option v-for="v in feeVouchers" :key="v.id" :value="v.id">{{ v.voucher_no }} — Rs {{ Number(v.net_amount).toLocaleString() }}</option>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Installment Plan</label>
+                <select disabled class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm bg-gray-100 cursor-not-allowed">
+                  <option v-for="p in installmentPlans" :key="p.id" :value="p.id" :selected="p.id == assignment.installment_plan_id">
+                    {{ p.plan_name }} ({{ p.total_installments }} kistain) {{ p.fee_type ? '— ' + p.fee_type.fee_name : '' }}
+                  </option>
                 </select>
               </div>
 
-              <!-- Total Amount -->
-              <div>
-                <label for="total_amount" class="block text-sm font-medium text-gray-700 mb-2">Total Amount <span class="text-red-500">*</span></label>
-                <input id="total_amount" v-model="form.total_amount" type="number" step="0.01" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" :class="{ 'border-red-500': form.errors.total_amount }" placeholder="0.00" required />
-                <p v-if="form.errors.total_amount" class="mt-1 text-sm text-red-600">{{ form.errors.total_amount }}</p>
+              <!-- Amount Summary -->
+              <div class="md:col-span-2">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div class="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 text-center">
+                    <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Total Amount</p>
+                    <p class="text-xl font-bold text-indigo-900">Rs {{ Number(assignment.total_amount).toLocaleString() }}</p>
+                  </div>
+                  <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-center">
+                    <p class="text-xs font-semibold text-green-600 uppercase tracking-wider">Paid</p>
+                    <p class="text-xl font-bold text-green-900">Rs {{ Number(assignment.amount_paid || 0).toLocaleString() }}</p>
+                  </div>
+                  <div class="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-center">
+                    <p class="text-xs font-semibold text-red-600 uppercase tracking-wider">Remaining</p>
+                    <p class="text-xl font-bold text-red-900">Rs {{ Number(assignment.remaining_amount || 0).toLocaleString() }}</p>
+                  </div>
+                </div>
               </div>
 
               <!-- Status -->
@@ -83,11 +81,53 @@
               </div>
 
               <!-- Notes -->
-              <div class="col-span-1 md:col-span-2">
+              <div>
                 <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                <textarea id="notes" v-model="form.notes" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Additional notes..."></textarea>
+                <textarea id="notes" v-model="form.notes" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Additional notes..."></textarea>
               </div>
 
+            </div>
+
+            <!-- ========== EXISTING SCHEDULE TABLE ========== -->
+            <div v-if="existingSchedule && existingSchedule.length > 0" class="mt-6">
+              <div class="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl overflow-hidden">
+                <div class="px-4 sm:px-6 py-3 border-b border-indigo-200">
+                  <h3 class="text-sm font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    Installment Schedule ({{ existingSchedule.length }} Kists)
+                  </h3>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="min-w-full">
+                    <thead>
+                      <tr class="bg-indigo-100/60">
+                        <th class="px-4 py-2.5 text-xs font-semibold text-indigo-800 text-center">Kist #</th>
+                        <th class="px-4 py-2.5 text-xs font-semibold text-indigo-800 text-center">Amount</th>
+                        <th class="px-4 py-2.5 text-xs font-semibold text-indigo-800 text-center">Due Date</th>
+                        <th class="px-4 py-2.5 text-xs font-semibold text-indigo-800 text-center">Paid</th>
+                        <th class="px-4 py-2.5 text-xs font-semibold text-indigo-800 text-center">Payment Date</th>
+                        <th class="px-4 py-2.5 text-xs font-semibold text-indigo-800 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-indigo-100">
+                      <tr v-for="kist in existingSchedule" :key="kist.kist_number" class="hover:bg-indigo-50/50 transition-colors">
+                        <td class="px-4 py-2.5 text-sm text-center">
+                          <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-200 text-indigo-800 text-xs font-bold">{{ kist.kist_number }}</span>
+                        </td>
+                        <td class="px-4 py-2.5 text-sm text-center font-semibold text-gray-900">Rs {{ Number(kist.kist_amount).toLocaleString() }}</td>
+                        <td class="px-4 py-2.5 text-sm text-center text-gray-700">{{ formatDate(kist.due_date) }}</td>
+                        <td class="px-4 py-2.5 text-sm text-center" :class="kist.paid_amount > 0 ? 'font-semibold text-green-700' : 'text-gray-400'">
+                          {{ kist.paid_amount ? 'Rs ' + Number(kist.paid_amount).toLocaleString() : '—' }}
+                        </td>
+                        <td class="px-4 py-2.5 text-sm text-center text-gray-700">{{ kist.payment_date ? formatDate(kist.payment_date) : '—' }}</td>
+                        <td class="px-4 py-2.5 text-sm text-center">
+                          <span :class="getKistStatusClass(kist.status)" class="px-2 py-1 text-xs font-medium rounded-full capitalize">{{ kist.status }}</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
 
             <!-- Submit Buttons -->
@@ -111,42 +151,37 @@ import { ref } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Components/Layout/AppLayout.vue'
 import Button from '@/Components/Common/Button.vue'
-import axios from 'axios'
+import StudentRollSearch from '@/Components/Common/StudentRollSearch.vue'
 
 const props = defineProps({
   assignment: { type: Object, required: true },
-  students: Array,
   installmentPlans: Array,
-  feeVouchers: { type: Array, default: () => [] },
   initialEnrollments: { type: Array, default: () => [] },
+  selectedStudent: { type: Object, default: null },
+  existingSchedule: { type: Array, default: () => [] },
 })
 
-// Cascading dropdown state — pre-loaded from controller
 const selectedStudentId = ref(props.assignment.student_id ?? '')
-const enrollmentOptions = ref(props.initialEnrollments)
-const loadingEnrollments = ref(false)
 
 const form = useForm({
-  student_enrollment_id: props.assignment.student_enrollment_id,
-  installment_plan_id: props.assignment.installment_plan_id,
-  fee_voucher_id: props.assignment.fee_voucher_id || '',
   total_amount: props.assignment.total_amount,
   status: props.assignment.status,
-  notes: '',
+  notes: props.assignment.notes || '',
 })
 
-// When student changes → load their enrollments
-const onStudentChange = async () => {
-  form.student_enrollment_id = ''
-  enrollmentOptions.value = []
-  if (!selectedStudentId.value) return
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
 
-  loadingEnrollments.value = true
-  try {
-    const res = await axios.get(route('student-installment-assignments.enrollments-by-student', selectedStudentId.value))
-    enrollmentOptions.value = res.data
-  } catch (e) { console.error('Error loading enrollments:', e) }
-  finally { loadingEnrollments.value = false }
+const getKistStatusClass = (status) => {
+  return {
+    'pending': 'bg-amber-100 text-amber-800',
+    'paid': 'bg-green-100 text-green-800',
+    'overdue': 'bg-red-100 text-red-800',
+    'partial': 'bg-blue-100 text-blue-800',
+  }[status] || 'bg-gray-100 text-gray-800'
 }
 
 const submit = () => {

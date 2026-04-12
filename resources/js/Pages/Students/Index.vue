@@ -127,6 +127,7 @@
                 <tr>
                   <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">#</th>
                   <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Admission No</th>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Roll No</th>
                   <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Student Name</th>
                   <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Father Name</th>
                   <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Date of Birth</th>
@@ -176,7 +177,9 @@
                     <span class="text-xs font-semibold text-gray-500">#{{ mobileOffset + index + 1 }}</span>
                     <h3 class="text-base font-semibold text-gray-900">{{ student.student_name }}</h3>
                   </div>
-                  <p class="text-xs text-gray-500 mt-0.5">{{ student.admission_no || 'No Admission No' }}</p>
+                  <p class="text-xs text-gray-500 mt-0.5">
+                    Adm: {{ student.admission_no || 'N/A' }} | Roll: {{ student.roll_no || 'N/A' }}
+                  </p>
                 </div>
                 <span :class="getStatusClass(student.is_active)" class="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ml-2">
                   {{ student.is_active ? 'Active' : 'Inactive' }}
@@ -431,6 +434,7 @@ onMounted(() => {
     columns: [
       { data: 'DT_RowIndex',   name: 'DT_RowIndex',   orderable: false, searchable: false },
       { data: 'admission_no',  name: 'admission_no' },
+      { data: 'roll_no',       name: 'roll_no' },
       { data: 'student_name',  name: 'student_name' },
       { data: 'father_name',   name: 'father_name',   orderable: false },
       { data: 'date_of_birth', name: 'date_of_birth' },

@@ -4,11 +4,10 @@ namespace App\Services;
 
 use App\Models\FeeVoucher;
 use App\Models\StudentEnrollment;
-use App\Models\FeeStructure;
+use App\Models\StudentFeeStructure;
 use App\Models\StudentFeeConcession;
 use App\Models\SiblingDiscountRule;
 use App\Models\FeeFineRule;
-use App\Models\PreviousYearBalance;
 use App\Models\VoucherDiscountBreakdown;
 use App\Models\StudentLedger;
 use Illuminate\Support\Facades\DB;
@@ -27,25 +26,30 @@ class FeeGenerationService
             $students = StudentEnrollment::where('branch_id', $branchId)
                 ->where('academic_year_id', $academicYearId)
                 ->where('status', 'active')
-                ->with(['student', 'classSection.branchClass.class', 'feeConcessions'])
+                ->with(['student', 'feeConcessions'])
                 ->get();
 
             $generatedCount = 0;
-            $skippedCount = 0;
+            $skippedCount   = 0;
 
             foreach ($students as $enrollment) {
-                // Get active fee structures for this student's class
-                $feeStructures = FeeStructure::active()
-                    ->where('branch_id', $branchId)
-                    ->where('class_id', $enrollment->classSection->branch_class_id ?? null)
-                    ->where('academic_year_id', $academicYearId)
-                    ->with('feeType')
+                // Get fee structures assigned to this specific student
+                $studentFeeStructures = StudentFeeStructure::active()
+                    ->where('student_enrollment_id', $enrollment->id)
+                    ->with(['feeStructure.feeType'])
+                    ->whereHas('feeStructure', fn($q) => $q->where('is_active', true))
                     ->get();
 
-                foreach ($feeStructures as $structure) {
+                foreach ($studentFeeStructures as $studentFeeStructure) {
+                    $structure = $studentFeeStructure->feeStructure;
+
+                    if (!$structure || !$structure->feeType) {
+                        continue;
+                    }
+
                     // Check if fee type is recurring for this month
-                    if ($structure->feeType->is_recurring) {
-                        $recurringMonths = $this->parseRecurringMonths($structure->feeType->recurring_months);
+                    if ($structure->feeType->is_recurring ?? false) {
+                        $recurringMonths = $this->parseRecurringMonths($structure->feeType->recurring_months ?? null);
                         if (!in_array($month, $recurringMonths)) {
                             continue;
                         }
@@ -63,15 +67,14 @@ class FeeGenerationService
                         continue;
                     }
 
-                    // Calculate amounts
-                    $baseAmount = $structure->amount;
-                    $discounts = $this->calculateDiscounts($enrollment, $structure->fee_type_id, $baseAmount);
-                    $fine = $this->calculateApplicableFines($enrollment, $structure->fee_type_id, $month, $year);
+                    // Base amount: use custom_amount if set, otherwise fee structure amount
+                    $baseAmount     = $studentFeeStructure->effective_amount;
+                    $discounts      = $this->calculateDiscounts($enrollment, $structure->fee_type_id, $baseAmount);
+                    $fine           = $this->calculateApplicableFines($enrollment, $structure->fee_type_id, $month, $year);
 
-                    $originalAmount = $baseAmount;
                     $discountAmount = $discounts['total_discount'];
-                    $fineAmount = $fine;
-                    $netAmount = $originalAmount - $discountAmount + $fineAmount;
+                    $fineAmount     = $fine;
+                    $netAmount      = $baseAmount - $discountAmount + $fineAmount;
 
                     // Create voucher
                     $voucher = FeeVoucher::create([
@@ -82,7 +85,7 @@ class FeeGenerationService
                         'month'                 => $month,
                         'year'                  => $year,
                         'generated_for'         => $this->getMonthName($month) . ' ' . $year,
-                        'original_amount'       => $originalAmount,
+                        'original_amount'       => $baseAmount,
                         'discount_amount'       => $discountAmount,
                         'fine_amount'           => $fineAmount,
                         'net_amount'            => $netAmount,
@@ -97,11 +100,11 @@ class FeeGenerationService
                     // Save discount breakdown
                     foreach ($discounts['breakdown'] as $discount) {
                         VoucherDiscountBreakdown::create([
-                            'voucher_id'       => $voucher->id,
-                            'discount_type'    => $discount['type'],
-                            'discount_source'  => $discount['source'],
-                            'discount_amount'  => $discount['amount'],
-                            'description'      => $discount['description'],
+                            'voucher_id'      => $voucher->id,
+                            'discount_type'   => $discount['type'],
+                            'discount_source' => $discount['source'],
+                            'discount_amount' => $discount['amount'],
+                            'description'     => $discount['description'],
                         ]);
                     }
 
@@ -144,17 +147,19 @@ class FeeGenerationService
     {
         DB::beginTransaction();
         try {
-            $feeStructure = FeeStructure::active()
+            // Look up via student_fee_structures — correct approach
+            $studentFeeStructure = StudentFeeStructure::active()
                 ->where('student_enrollment_id', $voucher->student_enrollment_id)
-                ->where('fee_type_id', $voucher->fee_type_id)
+                ->whereHas('feeStructure', fn($q) => $q->where('fee_type_id', $voucher->fee_type_id)->where('is_active', true))
+                ->with('feeStructure')
                 ->first();
 
-            if (!$feeStructure) {
-                return ['success' => false, 'message' => 'Fee structure not found'];
+            if (!$studentFeeStructure) {
+                return ['success' => false, 'message' => 'Fee structure not assigned to this student'];
             }
 
-            $baseAmount = $feeStructure->amount;
-            $discounts = $this->calculateDiscounts(
+            $baseAmount = $studentFeeStructure->effective_amount;
+            $discounts  = $this->calculateDiscounts(
                 $voucher->studentEnrollment,
                 $voucher->fee_type_id,
                 $baseAmount
@@ -162,10 +167,9 @@ class FeeGenerationService
 
             $voucher->original_amount = $baseAmount;
             $voucher->discount_amount = $discounts['total_discount'];
-            $voucher->net_amount = $baseAmount - $discounts['total_discount'] + $voucher->fine_amount;
+            $voucher->net_amount      = $baseAmount - $discounts['total_discount'] + $voucher->fine_amount;
             $voucher->remaining_amount = $voucher->net_amount - $voucher->paid_amount;
 
-            // Update status
             if ($voucher->remaining_amount <= 0) {
                 $voucher->status = 'paid';
             } elseif ($voucher->paid_amount > 0) {
@@ -180,11 +184,11 @@ class FeeGenerationService
             VoucherDiscountBreakdown::where('voucher_id', $voucher->id)->delete();
             foreach ($discounts['breakdown'] as $discount) {
                 VoucherDiscountBreakdown::create([
-                    'voucher_id'       => $voucher->id,
-                    'discount_type'    => $discount['type'],
-                    'discount_source'  => $discount['source'],
-                    'discount_amount'  => $discount['amount'],
-                    'description'      => $discount['description'],
+                    'voucher_id'      => $voucher->id,
+                    'discount_type'   => $discount['type'],
+                    'discount_source' => $discount['source'],
+                    'discount_amount' => $discount['amount'],
+                    'description'     => $discount['description'],
                 ]);
             }
 
@@ -260,8 +264,6 @@ class FeeGenerationService
      */
     private function calculateApplicableFines($enrollment, $feeTypeId, $month, $year)
     {
-        // This would calculate fines based on FeeFineRule and due date
-        // For now, return 0 as fines are typically applied after due date passes
         return 0;
     }
 
@@ -270,13 +272,10 @@ class FeeGenerationService
      */
     private function calculateStudentBalance($enrollmentId)
     {
-        $debits = StudentLedger::where('student_enrollment_id', $enrollmentId)
-            ->where('transaction_type', 'debit')
-            ->sum('amount');
-
+        $debits  = StudentLedger::where('student_enrollment_id', $enrollmentId)
+            ->where('transaction_type', 'debit')->sum('amount');
         $credits = StudentLedger::where('student_enrollment_id', $enrollmentId)
-            ->where('transaction_type', 'credit')
-            ->sum('amount');
+            ->where('transaction_type', 'credit')->sum('amount');
 
         return $debits - $credits;
     }
@@ -297,9 +296,8 @@ class FeeGenerationService
     private function parseRecurringMonths(?string $months): array
     {
         if (!$months) {
-            return range(1, 12); // All months
+            return range(1, 12);
         }
-
         return array_map('intval', explode(',', $months));
     }
 
@@ -309,8 +307,8 @@ class FeeGenerationService
     private function getMonthName(int $month): string
     {
         $months = [
-            1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April',
-            5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
+            1 => 'January', 2 => 'February', 3 => 'March',    4 => 'April',
+            5 => 'May',     6 => 'June',      7 => 'July',     8 => 'August',
             9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December',
         ];
         return $months[$month] ?? 'Unknown';
@@ -321,50 +319,10 @@ class FeeGenerationService
      */
     private function calculateDueDate(int $year, int $month, ?int $dueDay): string
     {
-        $day = $dueDay ?? 10; // Default to 10th if not set
-
-        // Handle months with fewer days
-        $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
-        $day = min($day, $daysInMonth);
-
+        $day          = $dueDay ?? 10;
+        $daysInMonth  = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+        $day          = min($day, $daysInMonth);
         return sprintf('%04d-%02d-%02d', $year, $month, $day);
-    }
-
-    /**
-     * Generate vouchers for all students in a specific class
-     */
-    public function generateForClass($branchId, $classId, $academicYearId, $month, $year)
-    {
-        DB::beginTransaction();
-        try {
-            $enrollments = StudentEnrollment::where('branch_id', $branchId)
-                ->where('academic_year_id', $academicYearId)
-                ->whereHas('classSection', function ($q) use ($classId) {
-                    $q->where('branch_class_id', $classId);
-                })
-                ->where('status', 'active')
-                ->get();
-
-            $count = 0;
-            foreach ($enrollments as $enrollment) {
-                $result = $this->generateMonthlyVouchers(
-                    $branchId,
-                    $academicYearId,
-                    $month,
-                    $year
-                );
-
-                if ($result['success']) {
-                    $count += $result['count'];
-                }
-            }
-
-            DB::commit();
-            return ['success' => true, 'count' => $count];
-        } catch (Exception $e) {
-            DB::rollBack();
-            return ['success' => false, 'message' => $e->getMessage()];
-        }
     }
 
     /**
@@ -396,13 +354,12 @@ class FeeGenerationService
                         ? ($voucher->net_amount * $rule->fine_value) / 100
                         : $rule->fine_value;
 
-                    // Apply max fine cap if set
                     if ($rule->max_fine && $fineAmount > $rule->max_fine) {
                         $fineAmount = $rule->max_fine;
                     }
 
-                    $voucher->fine_amount += $fineAmount;
-                    $voucher->net_amount += $fineAmount;
+                    $voucher->fine_amount      += $fineAmount;
+                    $voucher->net_amount       += $fineAmount;
                     $voucher->remaining_amount += $fineAmount;
                     $voucher->save();
 

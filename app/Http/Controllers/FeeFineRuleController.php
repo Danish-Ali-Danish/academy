@@ -165,6 +165,30 @@ class FeeFineRuleController extends Controller
             'is_active'                => 'boolean',
         ]);
 
+        // Check for duplicate rule (same branch + fee_type + days_after_due)
+        $exists = FeeFineRule::where('days_after_due', $validated['days_after_due'])
+            ->where(function ($q) use ($validated) {
+                if (isset($validated['branch_id'])) {
+                    $q->where('branch_id', $validated['branch_id']);
+                } else {
+                    $q->whereNull('branch_id');
+                }
+            })
+            ->where(function ($q) use ($validated) {
+                if (isset($validated['fee_type_id'])) {
+                    $q->where('fee_type_id', $validated['fee_type_id']);
+                } else {
+                    $q->whereNull('fee_type_id');
+                }
+            })
+            ->exists();
+
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'A fee fine rule already exists for this combination (Branch + Fee Type + Days After Due). Please edit the existing record.');
+        }
+
         FeeFineRule::create($validated);
 
         return redirect()->route('fee-fine-rules.index')
@@ -184,6 +208,31 @@ class FeeFineRuleController extends Controller
             'description'              => 'nullable|string',
             'is_active'                => 'boolean',
         ]);
+
+        // Check for duplicate rule (excluding current record)
+        $exists = FeeFineRule::where('days_after_due', $validated['days_after_due'])
+            ->where('id', '!=', $feeFineRule->id)
+            ->where(function ($q) use ($validated) {
+                if (isset($validated['branch_id'])) {
+                    $q->where('branch_id', $validated['branch_id']);
+                } else {
+                    $q->whereNull('branch_id');
+                }
+            })
+            ->where(function ($q) use ($validated) {
+                if (isset($validated['fee_type_id'])) {
+                    $q->where('fee_type_id', $validated['fee_type_id']);
+                } else {
+                    $q->whereNull('fee_type_id');
+                }
+            })
+            ->exists();
+
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'A fee fine rule already exists for this combination (Branch + Fee Type + Days After Due). Please edit the existing record.');
+        }
 
         $feeFineRule->update($validated);
 

@@ -37,7 +37,7 @@
                 <label for="student_enrollment_id" class="block text-sm font-medium text-gray-700 mb-2">Student Enrollment <span class="text-red-500">*</span></label>
                 <select id="student_enrollment_id" v-model="form.student_enrollment_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" :class="{ 'border-red-500': form.errors.student_enrollment_id }" required>
                   <option value="">Select Enrollment</option>
-                  <option v-for="e in enrollments" :key="e.id" :value="e.id">{{ e.student?.student_name || e.student?.first_name }} ({{ e.student?.admission_no }})</option>
+                  <option v-for="e in enrollments" :key="e.id" :value="e.id">{{ e.student?.student_name || e.student?.first_name }} (Roll: {{ e.student?.roll_no || 'N/A' }}, Adm: {{ e.student?.admission_no || 'N/A' }})</option>
                 </select>
                 <p v-if="form.errors.student_enrollment_id" class="mt-1 text-sm text-red-600">{{ form.errors.student_enrollment_id }}</p>
               </div>

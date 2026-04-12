@@ -13,9 +13,9 @@ class Student extends Model
     use SoftDeletes, HasFactory;
 
     protected $fillable = [
-        'admission_no', 'parent_id', 'student_name', 'date_of_birth', 'gender',
+        'admission_no', 'parent_id', 'student_name', 'roll_no', 'date_of_birth', 'gender',
         'photo', 'whatsapp_number', 'b_form_no', 'blood_group', 'religion',
-        'is_hafiz', 'student_type', 'previous_school', 'medical_condition', 'is_active',
+        'is_hafiz', 'student_type', 'program_level', 'previous_school', 'medical_condition', 'is_active',
     ];
 
     protected $casts = [

@@ -68,6 +68,21 @@
                 <p v-if="form.errors.admission_no" class="mt-1 text-sm text-red-600">{{ form.errors.admission_no }}</p>
               </div>
 
+
+              <!-- Roll Number (Read-only) -->
+              <div>
+                <label for="roll_no" class="block text-sm font-medium text-gray-700 mb-2">
+                  Roll Number <span class="text-xs text-gray-400 font-normal">(Auto-Generated)</span>
+                </label>
+                <input
+                  id="roll_no"
+                  v-model="form.roll_no"
+                  type="text"
+                  class="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 shadow-sm sm:text-sm"
+                  disabled
+                />
+              </div>
+
               <!-- Parent -->
               <div>
                 <label for="parent_id" class="block text-sm font-medium text-gray-700 mb-2">
@@ -352,6 +367,7 @@ const props = defineProps({
 // Form — pre-populated with existing student data
 const form = useForm({
   admission_no:      props.student.admission_no      ?? '',
+  roll_no:           props.student.roll_no           ?? '',
   parent_id:         props.student.parent_id         ?? '',
   student_name:      props.student.student_name      ?? '',
   date_of_birth:     props.student.date_of_birth     ?? '',

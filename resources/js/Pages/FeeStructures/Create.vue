@@ -123,6 +123,10 @@ const props = defineProps({
   academicYears: Array,
   branches: Array,
   feeTypes: Array,
+  existingStructures: {
+    type: Array,
+    default: () => [],
+  },
   errors: Object,
 })
 
@@ -203,6 +207,24 @@ watch(() => form.errors, (errors) => {
 }, { deep: true })
 
 const submit = () => {
+  // Client-side duplicate check
+  const isDuplicate = props.existingStructures?.some(
+    s => s.academic_year_id == form.academic_year_id &&
+         s.branch_id == form.branch_id &&
+         s.class_id == form.class_id &&
+         s.fee_type_id == form.fee_type_id
+  )
+
+  if (isDuplicate) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Duplicate Fee Structure!',
+      html: 'A fee structure already exists for this combination.<br>Please edit the existing record instead.',
+      confirmButtonColor: '#3085d6',
+    })
+    return
+  }
+
   form.post(route('fee-structures.store'), {
     preserveScroll: true,
     onSuccess: () => {

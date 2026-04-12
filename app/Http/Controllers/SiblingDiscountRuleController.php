@@ -79,6 +79,23 @@ class SiblingDiscountRuleController extends Controller
                 'is_active' => 'boolean',
             ]);
 
+            // Check for duplicate rule (same child_number + applies_to_fee_type_id)
+            $exists = SiblingDiscountRule::where('child_number', $validated['child_number'])
+                ->where(function ($q) use ($validated) {
+                    if (isset($validated['applies_to_fee_type_id'])) {
+                        $q->where('applies_to_fee_type_id', $validated['applies_to_fee_type_id']);
+                    } else {
+                        $q->whereNull('applies_to_fee_type_id');
+                    }
+                })
+                ->exists();
+
+            if ($exists) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'A sibling discount rule already exists for this child number and fee type combination. Please edit the existing record.');
+            }
+
             SiblingDiscountRule::create($validated);
             return redirect()->route('sibling-discount-rules.index')->with('success', 'Sibling discount rule created successfully!');
         } catch (\Exception $e) {
@@ -97,6 +114,24 @@ class SiblingDiscountRuleController extends Controller
                 'description' => 'nullable|string|max:500',
                 'is_active' => 'boolean',
             ]);
+
+            // Check for duplicate rule (excluding current record)
+            $exists = SiblingDiscountRule::where('child_number', $validated['child_number'])
+                ->where('id', '!=', $siblingDiscountRule->id)
+                ->where(function ($q) use ($validated) {
+                    if (isset($validated['applies_to_fee_type_id'])) {
+                        $q->where('applies_to_fee_type_id', $validated['applies_to_fee_type_id']);
+                    } else {
+                        $q->whereNull('applies_to_fee_type_id');
+                    }
+                })
+                ->exists();
+
+            if ($exists) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'A sibling discount rule already exists for this child number and fee type combination. Please edit the existing record.');
+            }
 
             $siblingDiscountRule->update($validated);
             return redirect()->route('sibling-discount-rules.index')->with('success', 'Sibling discount rule updated successfully!');

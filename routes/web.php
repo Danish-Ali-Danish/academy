@@ -36,6 +36,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AcademicYearController;
 use App\Http\Controllers\StudentEnrollmentController;
 use App\Http\Controllers\StudentFeeConcessionController;
+use App\Http\Controllers\StudentFeeStructureController;
 use App\Http\Controllers\StudentScholarshipController;
 use App\Http\Controllers\StudentInstallmentAssignmentController;
 use App\Http\Controllers\InstallmentScheduleController;
@@ -82,6 +83,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ==========================================
     // MANAGEMENT ROUTES
     // ==========================================
+// API Custom Endpoints
+// ==========================================
+Route::get('api/students/search', [\App\Http\Controllers\StudentController::class, 'search'])->name('students.search');
+
 // ✅ CORRECT - Put custom routes BEFORE resource routes
 Route::get('api/branches/dropdown', [BranchController::class, 'dropdown'])->name('branches.dropdown');
 
@@ -196,10 +201,18 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
     Route::get('api/student-enrollments/sections-by-branch-class/{branchClassId}', [StudentEnrollmentController::class, 'sectionsByBranchClass'])
         ->name('student-enrollments.sections-by-branch-class');
 
+    // Student Fee Structures (per-student fee assignments)
+    Route::post('student-fee-structures/sync-all', [StudentFeeStructureController::class, 'syncAll'])
+        ->name('student-fee-structures.sync-all');
+    Route::resource('student-fee-structures', StudentFeeStructureController::class)
+        ->only(['index', 'update', 'destroy']);
+
     // Student Fee Concessions
     Route::resource('student-fee-concessions', StudentFeeConcessionController::class);
     Route::get('api/student-fee-concessions/enrollments-by-student/{studentId}', [StudentFeeConcessionController::class, 'enrollmentsByStudent'])
         ->name('student-fee-concessions.enrollments-by-student');
+    Route::get('api/student-fee-concessions/fee-structure-amount', [StudentFeeConcessionController::class, 'getFeeStructureAmount'])
+        ->name('student-fee-concessions.fee-structure-amount');
 
     // Student Scholarships
     Route::resource('student-scholarships', StudentScholarshipController::class);
@@ -210,6 +223,8 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
     Route::resource('student-installment-assignments', StudentInstallmentAssignmentController::class);
     Route::get('api/student-installment-assignments/enrollments-by-student/{studentId}', [StudentInstallmentAssignmentController::class, 'enrollmentsByStudent'])
         ->name('student-installment-assignments.enrollments-by-student');
+    Route::get('api/student-installment-assignments/fee-for-enrollment', [StudentInstallmentAssignmentController::class, 'getFeeForEnrollment'])
+        ->name('student-installment-assignments.fee-for-enrollment');
 
     // Installment Schedules
     Route::resource('installment-schedules', InstallmentScheduleController::class);
@@ -224,9 +239,13 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
         ->name('fee-types.dropdown');
 
     // Fee Structures
+    Route::post('fee-structures/sync-all-to-students', [FeeStructureController::class, 'syncAllToStudents'])
+        ->name('fee-structures.sync-all-to-students');
     Route::resource('fee-structures', FeeStructureController::class);
     Route::get('api/fee-structures/dropdown', [FeeStructureController::class, 'dropdown'])
         ->name('fee-structures.dropdown');
+    Route::post('fee-structures/{feeStructure}/sync-to-students', [FeeStructureController::class, 'syncToStudents'])
+        ->name('fee-structures.sync-to-students');
 
     // Fee Vouchers
     Route::resource('fee-vouchers', FeeVoucherController::class);
@@ -375,6 +394,18 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // ==========================================
+    // RECYCLE BIN ROUTES
+    // ==========================================
+
+    Route::get('/recycle-bin', [\App\Http\Controllers\RecycleBinController::class, 'index'])->name('recycle-bin.index');
+    Route::post('/recycle-bin/restore', [\App\Http\Controllers\RecycleBinController::class, 'restore'])->name('recycle-bin.restore');
+    Route::post('/recycle-bin/restore-multiple', [\App\Http\Controllers\RecycleBinController::class, 'restoreMultiple'])->name('recycle-bin.restore-multiple');
+    Route::delete('/recycle-bin/destroy', [\App\Http\Controllers\RecycleBinController::class, 'destroy'])->name('recycle-bin.destroy');
+    Route::delete('/recycle-bin/destroy-multiple', [\App\Http\Controllers\RecycleBinController::class, 'destroyMultiple'])->name('recycle-bin.destroy-multiple');
+    Route::delete('/recycle-bin/empty-type', [\App\Http\Controllers\RecycleBinController::class, 'emptyType'])->name('recycle-bin.empty-type');
+    Route::delete('/recycle-bin/empty-all', [\App\Http\Controllers\RecycleBinController::class, 'emptyAll'])->name('recycle-bin.empty-all');
 });
 
 require __DIR__.'/auth.php';

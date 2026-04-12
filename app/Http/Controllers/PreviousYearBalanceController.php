@@ -28,7 +28,7 @@ class PreviousYearBalanceController extends Controller
 
     public function create()
     {
-        $students = Student::select('id', 'student_name', 'admission_no')
+        $students = Student::select('id', 'student_name', 'admission_no', 'roll_no')
             ->orderBy('student_name')
             ->get();
 
@@ -46,7 +46,7 @@ class PreviousYearBalanceController extends Controller
     {
         $previousYearBalance->load(['studentEnrollment.student', 'fromAcademicYear', 'toAcademicYear', 'carriedForwardBy']);
 
-        $students = Student::select('id', 'student_name', 'admission_no')
+        $students = Student::select('id', 'student_name', 'admission_no', 'roll_no')
             ->orderBy('student_name')
             ->get();
 

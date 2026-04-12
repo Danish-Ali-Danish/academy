@@ -23,7 +23,10 @@ class FeeTypeController extends Controller
 
     public function create()
     {
-        return Inertia::render('FeeTypes/Create');
+        $existingFeeTypes = FeeType::select('id', 'fee_name')->get();
+        return Inertia::render('FeeTypes/Create', [
+            'existingFeeTypes' => $existingFeeTypes,
+        ]);
     }
 
     public function edit(FeeType $feeType)
@@ -154,6 +157,14 @@ class FeeTypeController extends Controller
             'is_active'        => 'boolean',
         ]);
 
+        // Check for duplicate fee type name
+        $exists = FeeType::where('fee_name', $validated['fee_name'])->exists();
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'A fee type with the name "' . $validated['fee_name'] . '" already exists. Please use a different name.');
+        }
+
         FeeType::create($validated);
 
         return redirect()->route('fee-types.index')
@@ -171,6 +182,16 @@ class FeeTypeController extends Controller
             'display_order'    => 'nullable|integer|min:0',
             'is_active'        => 'boolean',
         ]);
+
+        // Check for duplicate fee type name (excluding current record)
+        $exists = FeeType::where('fee_name', $validated['fee_name'])
+            ->where('id', '!=', $feeType->id)
+            ->exists();
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'A fee type with the name "' . $validated['fee_name'] . '" already exists. Please use a different name.');
+        }
 
         $feeType->update($validated);
 

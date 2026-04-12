@@ -279,7 +279,7 @@ class FeePaymentController extends Controller
     private function getFormData(): array
     {
         return [
-            'enrollments' => \App\Models\StudentEnrollment::with('student:id,student_name,admission_no')
+            'enrollments' => \App\Models\StudentEnrollment::with('student:id,student_name,admission_no,roll_no')
                 ->select('id', 'student_id')
                 ->where('status', 'active')
                 ->get(),

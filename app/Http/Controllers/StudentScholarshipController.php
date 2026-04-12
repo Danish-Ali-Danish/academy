@@ -26,7 +26,7 @@ class StudentScholarshipController extends Controller
     public function create()
     {
         return Inertia::render('StudentScholarships/Create', [
-            'students'      => Student::select('id', 'student_name', 'admission_no')->orderBy('student_name')->get(),
+            'students'      => Student::select('id', 'student_name', 'admission_no', 'roll_no')->orderBy('student_name')->get(),
             'scholarships'  => Scholarship::select('id', 'scholarship_name')->orderBy('scholarship_name')->get(),
             'academicYears' => AcademicYear::select('id', 'year_name')->orderBy('year_name', 'desc')->get(),
         ]);
@@ -55,7 +55,7 @@ class StudentScholarshipController extends Controller
                 'revoke_reason'         => $studentScholarship->revoke_reason,
                 'notes'                 => $studentScholarship->notes,
             ],
-            'students'      => Student::select('id', 'student_name', 'admission_no')->orderBy('student_name')->get(),
+            'students'      => Student::select('id', 'student_name', 'admission_no', 'roll_no')->orderBy('student_name')->get(),
             'scholarships'  => Scholarship::select('id', 'scholarship_name')->orderBy('scholarship_name')->get(),
             'academicYears' => AcademicYear::select('id', 'year_name')->orderBy('year_name', 'desc')->get(),
             'initialEnrollments' => $studentId
@@ -150,6 +150,20 @@ class StudentScholarshipController extends Controller
             'status'                => 'nullable|string|in:active,expired,revoked',
             'notes'                 => 'nullable|string',
         ]);
+
+        // Check for duplicate scholarship (same student + enrollment + scholarship + academic_year)
+        $exists = StudentScholarship::where('student_enrollment_id', $validated['student_enrollment_id'])
+            ->where('scholarship_id', $validated['scholarship_id'])
+            ->where('academic_year_id', $validated['academic_year_id'])
+            ->where('status', 'active')
+            ->exists();
+
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'This scholarship is already assigned to the student for this academic year. Please edit the existing record.');
+        }
+
         $validated['awarded_by'] = auth()->id();
         StudentScholarship::create($validated);
         return redirect()->route('student-scholarships.index')->with('success', 'Scholarship assigned successfully!');
@@ -169,6 +183,21 @@ class StudentScholarshipController extends Controller
             'revoke_reason'    => 'nullable|string',
             'notes'            => 'nullable|string',
         ]);
+
+        // Check for duplicate scholarship (excluding current record)
+        $exists = StudentScholarship::where('student_enrollment_id', $studentScholarship->student_enrollment_id)
+            ->where('scholarship_id', $validated['scholarship_id'])
+            ->where('academic_year_id', $validated['academic_year_id'])
+            ->where('id', '!=', $studentScholarship->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if ($exists) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'This scholarship is already assigned to the student for this academic year. Please edit the existing record.');
+        }
+
         $studentScholarship->update($validated);
         return redirect()->route('student-scholarships.index')->with('success', 'Scholarship updated successfully!');
     }

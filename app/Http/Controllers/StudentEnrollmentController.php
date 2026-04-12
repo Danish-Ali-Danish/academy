@@ -27,7 +27,7 @@ class StudentEnrollmentController extends Controller
     public function create()
     {
         return Inertia::render('StudentEnrollments/Create', [
-            'students'      => Student::select('id', 'student_name', 'admission_no')->orderBy('student_name')->get(),
+            'students'      => Student::select('id', 'student_name', 'admission_no', 'roll_no')->orderBy('student_name')->get(),
             'academicYears' => AcademicYear::select('id', 'year_name')->orderBy('start_date', 'desc')->get(),
             'branches'      => Branch::active()->select('id', 'branch_name')->orderBy('branch_name')->get(),
         ]);
@@ -57,7 +57,7 @@ class StudentEnrollmentController extends Controller
                 'leaving_reason'   => $studentEnrollment->leaving_reason,
                 'remarks'          => $studentEnrollment->remarks,
             ],
-            'students'      => Student::select('id', 'student_name', 'admission_no')->orderBy('student_name')->get(),
+            'students'      => Student::select('id', 'student_name', 'admission_no', 'roll_no')->orderBy('student_name')->get(),
             'academicYears' => AcademicYear::select('id', 'year_name')->orderBy('start_date', 'desc')->get(),
             'branches'      => Branch::active()->select('id', 'branch_name')->orderBy('branch_name')->get(),
             // Pre-load classes & sections for the selected branch so Edit form shows them immediately
@@ -190,7 +190,43 @@ class StudentEnrollmentController extends Controller
             'status'           => 'nullable|string|in:active,left,graduated,transferred,suspended',
             'remarks'          => 'nullable|string|max:1000',
         ]);
-        StudentEnrollment::create($validated);
+
+        // ── Auto-generate Roll Number based on Class ──
+        $classSection = ClassSection::with('branchClass.class')->find($validated['class_section_id']);
+        $className = $classSection?->branchClass?->class?->class_name ?? '';
+        $programLevel = $this->detectProgramLevel($className);
+        $prefixMap = ['middle' => 'SCH', 'matric' => 'MAT-', 'intermediate' => 'INT-', 'other' => 'CRS-'];
+        $prefix = $prefixMap[$programLevel] ?? 'SCH';
+
+        // Check if student already has a roll number for this program level
+        $student = Student::find($validated['student_id']);
+        $existingRoll = StudentEnrollment::where('student_id', $student->id)
+            ->where('roll_number', 'like', $prefix . '%')
+            ->value('roll_number');
+
+        if ($existingRoll) {
+            // Same level → reuse roll number
+            $validated['roll_number'] = $existingRoll;
+        } else {
+            // New level → generate unique roll number
+            do {
+                $randomNumber = str_pad(mt_rand(1, 99999), 5, '0', STR_PAD_LEFT);
+                $rollNo = $prefix . $randomNumber;
+            } while (
+                Student::where('roll_no', $rollNo)->exists() ||
+                StudentEnrollment::where('roll_number', $rollNo)->exists()
+            );
+            $validated['roll_number'] = $rollNo;
+        }
+
+        $enrollment = StudentEnrollment::create($validated);
+
+        // Update the student's permanent roll_no with the latest enrollment
+        $student->update([
+            'roll_no' => $validated['roll_number'],
+            'program_level' => $programLevel,
+        ]);
+
         return redirect()->route('student-enrollments.index')->with('success', 'Student enrolled successfully!');
     }
 
@@ -221,5 +257,21 @@ class StudentEnrollmentController extends Controller
         }
         $studentEnrollment->delete();
         return back()->with('success', 'Enrollment deleted successfully!');
+    }
+
+    /**
+     * Detect program level from class name
+     */
+    private function detectProgramLevel(string $className): string
+    {
+        $matric = ['Class 9', 'Class 10', 'Matric'];
+        $inter  = ['Intermediate (FA)', 'Intermediate (FSc)', 'ICS', 'I.Com'];
+        $other  = ['O Level', 'A Level', 'Entry Test Preparation'];
+
+        if (in_array($className, $matric)) return 'matric';
+        if (in_array($className, $inter))  return 'intermediate';
+        if (in_array($className, $other))  return 'other';
+
+        return 'middle'; // Play Group, Nursery, Prep, Class 1-8
     }
 }

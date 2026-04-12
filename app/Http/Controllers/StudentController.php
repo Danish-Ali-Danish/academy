@@ -47,6 +47,7 @@ class StudentController extends Controller
             'student' => [
                 'id'                => $student->id,
                 'admission_no'      => $student->admission_no,
+                'roll_no'           => $student->roll_no,
                 'parent_id'         => $student->parent_id,
                 'student_name'      => $student->student_name,
                 'date_of_birth'     => $student->date_of_birth?->format('Y-m-d'),
@@ -58,6 +59,7 @@ class StudentController extends Controller
                 'religion'          => $student->religion,
                 'is_hafiz'          => $student->is_hafiz,
                 'student_type'      => $student->student_type,
+                'program_level'     => $student->program_level,
                 'previous_school'   => $student->previous_school,
                 'medical_condition' => $student->medical_condition,
                 'is_active'         => $student->is_active,
@@ -75,6 +77,7 @@ class StudentController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('student_name', 'like', "%{$search}%")
                   ->orWhere('admission_no', 'like', "%{$search}%")
+                  ->orWhere('roll_no', 'like', "%{$search}%")
                   ->orWhere('b_form_no', 'like', "%{$search}%");
             });
         }
@@ -106,6 +109,7 @@ class StudentController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('student_name', 'like', "%{$search}%")
                   ->orWhere('admission_no', 'like', "%{$search}%")
+                  ->orWhere('roll_no', 'like', "%{$search}%")
                   ->orWhere('b_form_no', 'like', "%{$search}%");
             });
         }
@@ -126,7 +130,7 @@ class StudentController extends Controller
 
         $orderColumn = $request->input('order.0.column', 1);
         $orderDir    = $request->input('order.0.dir', 'desc');
-        $columns     = ['id', 'admission_no', 'student_name', 'date_of_birth', 'gender', 'student_type', 'is_active'];
+        $columns     = ['id', 'admission_no', 'roll_no', 'student_name', 'date_of_birth', 'gender', 'student_type', 'is_active'];
 
         if (isset($columns[$orderColumn])) {
             $query->orderBy($columns[$orderColumn], $orderDir);
@@ -148,6 +152,7 @@ class StudentController extends Controller
                 'DT_RowIndex'   => $start + $index + 1,
                 'id'            => $student->id,
                 'admission_no'  => $student->admission_no ?? '-',
+                'roll_no'       => $student->roll_no ?? '-',
                 'student_name'  => $student->student_name,
                 'father_name'   => $student->parent?->father_name ?? '-',
                 'date_of_birth' => $student->date_of_birth?->format('d M, Y') ?? '-',
@@ -262,9 +267,47 @@ class StudentController extends Controller
         }
 
         $students = $query
-            ->select('id', 'admission_no', 'student_name', 'student_type')
+            ->select('id', 'admission_no', 'roll_no', 'student_name', 'student_type')
             ->orderBy('student_name')
             ->get();
+
+        return response()->json($students);
+    }
+
+    /**
+     * Search students by Roll No or Name (API endpoint for Typeahead)
+     */
+    public function search(Request $request)
+    {
+        $query = $request->query('q');
+
+        $studentsQuery = Student::active()
+            ->with('parent:id,father_name')
+            ->select('id', 'roll_no', 'admission_no', 'student_name', 'parent_id');
+
+        if ($query) {
+            $studentsQuery->where(function ($q) use ($query) {
+                $q->where('roll_no', 'like', "%{$query}%")
+                  ->orWhere('student_name', 'like', "%{$query}%")
+                  ->orWhere('admission_no', 'like', "%{$query}%");
+            });
+        } else {
+            // No query — return last 20 students as suggestions
+            $studentsQuery->latest();
+        }
+
+        $students = $studentsQuery
+            ->limit(20)
+            ->get()
+            ->map(function ($student) {
+                return [
+                    'id'           => $student->id,
+                    'roll_no'      => $student->roll_no,
+                    'student_name' => $student->student_name,
+                    'admission_no' => $student->admission_no,
+                    'father_name'  => $student->parent?->father_name
+                ];
+            });
 
         return response()->json($students);
     }

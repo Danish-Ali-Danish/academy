@@ -72,7 +72,7 @@ const submit = () => {
                                     class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                                     <option value="">Select Student</option>
                                     <option v-for="student in students" :key="student.id" :value="student.id">
-                                        {{ student.student_name }} ({{ student.admission_no }})
+                                        {{ student.student_name }} (Roll: {{ student.roll_no || 'N/A' }}, Adm: {{ student.admission_no || 'N/A' }})
                                     </option>
                                 </select>
                                 <span v-if="form.errors.student_enrollment_id" class="text-red-500 text-sm">
