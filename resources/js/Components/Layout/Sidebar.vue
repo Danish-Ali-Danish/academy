@@ -269,19 +269,27 @@
           <p class="px-3 text-xs font-semibold text-indigo-200 uppercase tracking-wider mb-2">
             ⑥ Reports
           </p>
-          <Link :href="route('fee-collection-summaries.dashboard')" :class="navLinkClass(route().current('fee-collection-summaries.dashboard'))">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 13v6M12 7v12M17 10v9"/></svg>
-            <span>Collection Dashboard</span>
-          </Link>
+            <Link :href="route('fee-collection-summaries.dashboard')" :class="navLinkClass(route().current('fee-collection-summaries.dashboard'))">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 13v6M12 7v12M17 10v9"/></svg>
+              <span>Collection Dashboard</span>
+            </Link>
+            <Link :href="route('reports.fee-demand-register')" :class="navLinkClass(route().current('reports.fee-demand-register'))">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <span>Fee Demand Register</span>
+            </Link>
 
           <Link :href="route('fee-collection-summaries.index')" :class="navLinkClass(route().current('fee-collection-summaries.*'))">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 00-2-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             <span>Collection Summary</span>
           </Link>
-          <Link :href="route('fee-reminders.index')" :class="navLinkClass(route().current('fee-reminders.*'))">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-            <span>Fee Reminders</span>
-          </Link>
+            <Link :href="route('fee-reminders.index')" :class="navLinkClass(route().current('fee-reminders.*'))">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+              <span>Fee Reminders</span>
+            </Link>
+            <Link :href="route('carry-forwards.index')" :class="navLinkClass(route().current('carry-forwards.*'))">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+              <span>Carry Forwards</span>
+            </Link>
           <Link :href="route('student-ledgers.index')" :class="navLinkClass(route().current('student-ledgers.*'))">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14h6m-6 4h6M7 4h10a2 2 0 012 2v14l-4-2-3 2-3-2-4 2V6a2 2 0 012-2z"/></svg>
             <span>Student Ledger</span>

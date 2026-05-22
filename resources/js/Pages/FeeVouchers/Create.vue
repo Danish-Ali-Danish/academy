@@ -123,24 +123,28 @@
               </div>
 
               <div v-else-if="calculation" class="p-4 sm:p-5 space-y-4">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div class="rounded-lg bg-white border border-gray-200 p-4">
-                    <p class="text-xs text-gray-500 font-semibold uppercase tracking-wide">Original Amount</p>
-                    <p class="mt-1 text-xl font-bold text-gray-900">Rs {{ formatAmount(calculation.original_amount) }}</p>
+                  <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+                    <div class="rounded-lg bg-gray-50 border border-gray-200 p-4">
+                      <p class="text-xs text-gray-700 font-semibold uppercase tracking-wide">Base Amount</p>
+                      <p class="mt-1 text-xl font-bold text-gray-900">Rs {{ formatAmount(calculation.original_amount) }}</p>
+                    </div>
+                    <div class="rounded-lg bg-green-50 border border-green-200 p-4">
+                      <p class="text-xs text-green-700 font-semibold uppercase tracking-wide">Total Discount</p>
+                      <p class="mt-1 text-xl font-bold text-green-800">Rs {{ formatAmount(calculation.discount_amount) }}</p>
+                    </div>
+                    <div class="rounded-lg bg-red-50 border border-red-200 p-4">
+                      <p class="text-xs text-red-700 font-semibold uppercase tracking-wide">Fine Amount</p>
+                      <p class="mt-1 text-xl font-bold text-red-800">Rs {{ formatAmount(calculation.fine_amount) }}</p>
+                    </div>
+                    <div class="rounded-lg bg-yellow-50 border border-yellow-200 p-4">
+                      <p class="text-xs text-yellow-700 font-semibold uppercase tracking-wide">Carry Forward</p>
+                      <p class="mt-1 text-xl font-bold text-yellow-800">Rs {{ formatAmount(calculation.arrears_amount || 0) }}</p>
+                    </div>
+                    <div class="rounded-lg bg-indigo-50 border border-indigo-200 p-4">
+                      <p class="text-xs text-indigo-700 font-semibold uppercase tracking-wide">Net Amount</p>
+                      <p class="mt-1 text-2xl font-black text-indigo-900">Rs {{ formatAmount(calculation.net_amount) }}</p>
+                    </div>
                   </div>
-                  <div class="rounded-lg bg-green-50 border border-green-200 p-4">
-                    <p class="text-xs text-green-700 font-semibold uppercase tracking-wide">Total Discount</p>
-                    <p class="mt-1 text-xl font-bold text-green-800">Rs {{ formatAmount(calculation.discount_amount) }}</p>
-                  </div>
-                  <div class="rounded-lg bg-red-50 border border-red-200 p-4">
-                    <p class="text-xs text-red-700 font-semibold uppercase tracking-wide">Fine Amount</p>
-                    <p class="mt-1 text-xl font-bold text-red-800">Rs {{ formatAmount(calculation.fine_amount) }}</p>
-                  </div>
-                  <div class="rounded-lg bg-indigo-50 border border-indigo-200 p-4">
-                    <p class="text-xs text-indigo-700 font-semibold uppercase tracking-wide">Net Payable</p>
-                    <p class="mt-1 text-xl font-bold text-indigo-800">Rs {{ formatAmount(calculation.net_amount) }}</p>
-                  </div>
-                </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div class="rounded-lg bg-white border border-gray-200 p-4">

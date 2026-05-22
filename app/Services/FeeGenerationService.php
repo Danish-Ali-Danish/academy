@@ -90,6 +90,7 @@ class FeeGenerationService
                     'original_amount' => $row['original_amount'],
                     'discount_amount' => $row['discount_amount'],
                     'fine_amount' => $row['fine_amount'],
+                    'arrears_amount' => $row['arrears_amount'] ?? 0,
                     'net_amount' => $row['net_amount'],
                     'paid_amount' => 0,
                     'remaining_amount' => $row['net_amount'],
@@ -98,6 +99,46 @@ class FeeGenerationService
                     'generated_by' => auth()->id(),
                     'notes' => 'Generated from monthly voucher generator' . $advanceNotes,
                 ]);
+
+                if (!empty($row['carry_forward_records'])) {
+                    foreach ($row['carry_forward_records'] as $cfRecord) {
+                        \App\Models\StudentCarryForward::create([
+                            'student_enrollment_id' => $row['student_enrollment_id'],
+                            'branch_id' => \App\Models\StudentEnrollment::find($row['student_enrollment_id'])?->branch_id,
+                            'academic_year_id' => $row['academic_year_id'],
+                            'from_voucher_id' => $cfRecord['from_voucher_id'],
+                            'from_month_name' => $cfRecord['from_month_name'],
+                            'to_month_name' => $cfRecord['to_month_name'],
+                            'original_amount' => $cfRecord['original_amount'],
+                            'carry_amount' => $cfRecord['carry_amount'],
+                            'status' => 'pending',
+                        ]);
+
+                        // Close old voucher
+                        $oldVoucher = FeeVoucher::find($cfRecord['from_voucher_id']);
+                        if ($oldVoucher) {
+                            $oldVoucher->status = 'carried_forward';
+                            $oldVoucher->remaining_amount = 0;
+                            $oldVoucher->notes = trim($oldVoucher->notes . " [Carried Forward to " . $cfRecord['to_month_name'] . "]");
+                            $oldVoucher->save();
+                            
+                            // To balance ledger, the old voucher debt is now covered by the new voucher, 
+                            // we don't strictly need a new ledger entry for the old voucher because the new voucher 
+                            // ledger entry will add the arrears, but we should credit the old voucher amount 
+                            // so the ledger doesn't double-count the debt.
+                            \App\Models\StudentLedger::create([
+                                'student_enrollment_id' => $row['student_enrollment_id'],
+                                'transaction_type' => 'credit',
+                                'amount' => $cfRecord['carry_amount'],
+                                'description' => 'Carry Forward transferred to: ' . $cfRecord['to_month_name'],
+                                'reference_type' => 'carry_forward',
+                                'reference_id' => $cfRecord['from_voucher_id'],
+                                'balance_after' => $this->calculateStudentBalance($row['student_enrollment_id']) - $cfRecord['carry_amount'],
+                                'created_by' => auth()->id(),
+                            ]);
+                        }
+                    }
+                }
 
                 foreach ($row['breakdown'] as $discount) {
                     // 'advance' source discounts are not persisted as discount breakdowns;
@@ -282,14 +323,30 @@ class FeeGenerationService
                 }
             });
 
-        return $query->get()
-            ->filter(fn ($studentFeeStructure) => $this->feeTypeAppliesToMonth($studentFeeStructure->feeStructure?->feeType, $month))
-            ->map(fn ($studentFeeStructure) => $this->makeVoucherRow($studentFeeStructure, $academicYearId, $month, $year))
+        $studentFeeStructures = $query->get()
+            ->filter(fn ($studentFeeStructure) => $this->feeTypeAppliesToMonth($studentFeeStructure->feeStructure?->feeType, $month));
+
+        // Load Carry Forward Settings and Unpaid Vouchers
+        $cfSetting = \App\Models\CarryForwardSetting::where(function ($q) use ($branchId) {
+            $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+        })->first();
+
+        $unpaidVouchersByStudent = [];
+        if ($cfSetting && $cfSetting->is_enabled) {
+            $enrollmentIds = $studentFeeStructures->pluck('student_enrollment_id')->unique();
+            $unpaidVouchers = \App\Models\FeeVoucher::whereIn('student_enrollment_id', $enrollmentIds)
+                ->whereIn('status', ['pending', 'partial'])
+                ->get();
+            $unpaidVouchersByStudent = $unpaidVouchers->groupBy('student_enrollment_id')->toArray();
+        }
+
+        return $studentFeeStructures
+            ->map(fn ($studentFeeStructure) => $this->makeVoucherRow($studentFeeStructure, $academicYearId, $month, $year, $cfSetting, $unpaidVouchersByStudent))
             ->values()
             ->all();
     }
 
-    private function makeVoucherRow(StudentFeeStructure $studentFeeStructure, int $academicYearId, int $month, int $year): array
+    private function makeVoucherRow(StudentFeeStructure $studentFeeStructure, int $academicYearId, int $month, int $year, $cfSetting = null, array $unpaidVouchersByStudent = []): array
     {
         $enrollment = $studentFeeStructure->studentEnrollment;
         $structure = $studentFeeStructure->feeStructure;
@@ -297,7 +354,33 @@ class FeeGenerationService
         $baseAmount = round((float) $studentFeeStructure->effective_amount, 2);
         $discounts = $this->calculateDiscounts($enrollment, $structure->fee_type_id, $baseAmount, $academicYearId, $month, $year);
         $fineAmount = round($this->calculateApplicableFines($enrollment, $structure->fee_type_id, $month, $year), 2);
-        $netAmount = max(0, round($baseAmount - $discounts['total_discount'] + $fineAmount, 2));
+        
+        // Calculate Arrears (Carry Forward)
+        $arrearsAmount = 0.0;
+        $carryForwardRecords = [];
+        if ($cfSetting && $cfSetting->is_enabled && isset($unpaidVouchersByStudent[$enrollment->id])) {
+            $previousVouchers = collect($unpaidVouchersByStudent[$enrollment->id])
+                ->sortByDesc('id')
+                ->take($cfSetting->max_months);
+                
+            foreach ($previousVouchers as $pv) {
+                $rem = (float) $pv['remaining_amount'];
+                if ($cfSetting->scope === 'fee_only') {
+                    // Approximate fee portion by subtracting fines if any remain (simple approximation)
+                    $rem = min($rem, (float) $pv['original_amount'] - (float) $pv['discount_amount']);
+                }
+                $arrearsAmount += $rem;
+                $carryForwardRecords[] = [
+                    'from_voucher_id' => $pv['id'],
+                    'from_month_name' => $this->getMonthName($pv['month']) . ' ' . $pv['year'],
+                    'to_month_name' => $this->getMonthName($month) . ' ' . $year,
+                    'original_amount' => $pv['original_amount'],
+                    'carry_amount' => $rem,
+                ];
+            }
+        }
+
+        $netAmount = max(0, round($baseAmount - $discounts['total_discount'] + $fineAmount + $arrearsAmount, 2));
         $generatedFor = $this->getMonthName($month) . ' ' . $year;
         $existingVoucher = $this->findActiveExistingVoucher($enrollment->id, $structure->fee_type_id, $generatedFor);
 
@@ -349,10 +432,12 @@ class FeeGenerationService
             'scholarship_discount_amount' => $discounts['totals']['scholarship'],
             'discount_amount' => $discounts['total_discount'],
             'fine_amount' => $fineAmount,
+            'arrears_amount' => $arrearsAmount,
             'net_amount' => $netAmount,
             'advance_deduction' => $advanceDeduction,
             'due_date' => $this->calculateDueDate($year, $month, $structure->due_day),
-            'breakdown' => $discounts['breakdown'],
+            'breakdown' => $breakdown,
+            'carry_forward_records' => $carryForwardRecords,
         ];
     }
 

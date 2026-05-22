@@ -42,6 +42,8 @@ use App\Http\Controllers\StudentInstallmentAssignmentController;
 use App\Http\Controllers\FeeReminderController;
 use App\Http\Controllers\FeeReminderRuleController;
 use App\Http\Controllers\FeeReminderTemplateController;
+use App\Http\Controllers\CarryForwardController;
+use App\Http\Controllers\Report\FeeDemandRegisterController;
 use App\Http\Controllers\FeeApprovalRequestController;
 use App\Http\Controllers\FeeStructureChangeLogController;
 use App\Http\Controllers\StudentLedgerController;
@@ -363,6 +365,14 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
     
     Route::resource('fee-reminder-rules', FeeReminderRuleController::class)->except(['create', 'show', 'edit']);
     Route::resource('fee-reminder-templates', FeeReminderTemplateController::class)->except(['create', 'show', 'edit']);
+    
+    // Carry Forward
+    Route::get('carry-forwards', [CarryForwardController::class, 'index'])->name('carry-forwards.index');
+    Route::post('carry-forwards/settings', [CarryForwardController::class, 'updateSettings'])->name('carry-forwards.settings.update');
+    
+    // Fee Demand Register Report
+    Route::get('reports/fee-demand-register', [FeeDemandRegisterController::class, 'index'])->name('reports.fee-demand-register');
+    Route::get('api/reports/fee-demand-register/drill-down', [FeeDemandRegisterController::class, 'drillDown'])->name('api.reports.fee-demand-register.drill-down');
     
     Route::get('api/fee-reminders/enrollments-by-student/{studentId}', [FeeReminderController::class, 'getEnrollmentsByStudent'])
         ->name('fee-reminders.enrollments-by-student');

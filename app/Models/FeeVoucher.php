@@ -17,7 +17,7 @@ class FeeVoucher extends Model
         'voucher_no', 'student_enrollment_id', 'fee_type_id', 'academic_year_id',
         'fee_structure_id', 'fee_structure_version_id',
         'month', 'year', 'generated_for',
-        'original_amount', 'discount_amount', 'fine_amount',
+        'original_amount', 'discount_amount', 'fine_amount', 'arrears_amount',
         'net_amount', 'paid_amount', 'remaining_amount',
         'due_date', 'status', 'notes', 'generated_by',
     ];
@@ -27,6 +27,7 @@ class FeeVoucher extends Model
         'original_amount' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'fine_amount'     => 'decimal:2',
+        'arrears_amount'  => 'decimal:2',
         'net_amount'      => 'decimal:2',
         'paid_amount'     => 'decimal:2',
         'remaining_amount'=> 'decimal:2',

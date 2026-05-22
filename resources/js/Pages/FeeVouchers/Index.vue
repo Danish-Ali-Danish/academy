@@ -187,7 +187,9 @@
             <div class="rounded-lg bg-green-50 border border-green-200 p-3"><p class="text-xs text-green-700">Ready</p><p class="text-lg font-bold text-green-800">{{ previewSummary.ready_count }}</p></div>
             <div class="rounded-lg bg-amber-50 border border-amber-200 p-3"><p class="text-xs text-amber-700">Existing</p><p class="text-lg font-bold text-amber-800">{{ previewSummary.existing_count }}</p></div>
             <div class="rounded-lg bg-blue-50 border border-blue-200 p-3"><p class="text-xs text-blue-700">Original</p><p class="text-lg font-bold text-blue-800">Rs {{ formatAmount(previewSummary.original_amount) }}</p></div>
-            <div class="rounded-lg bg-purple-50 border border-purple-200 p-3"><p class="text-xs text-purple-700">Discount</p><p class="text-lg font-bold text-purple-800">Rs {{ formatAmount(previewSummary.discount_amount) }}</p></div>
+            <div class="rounded-lg bg-green-50 border border-green-200 p-3"><p class="text-xs text-green-700">Discounts</p><p class="text-lg font-bold text-green-800">Rs {{ formatAmount(previewSummary.discount_amount) }}</p></div>
+            <div class="rounded-lg bg-red-50 border border-red-200 p-3"><p class="text-xs text-red-700">Fine</p><p class="text-lg font-bold text-red-800">Rs {{ formatAmount(previewSummary.fine_amount) }}</p></div>
+            <div class="rounded-lg bg-yellow-50 border border-yellow-200 p-3"><p class="text-xs text-yellow-700">Carry Forward</p><p class="text-lg font-bold text-yellow-800">Rs {{ formatAmount(previewSummary.arrears_amount || 0) }}</p></div>
             <div class="rounded-lg bg-indigo-50 border border-indigo-200 p-3"><p class="text-xs text-indigo-700">Net</p><p class="text-lg font-bold text-indigo-800">Rs {{ formatAmount(previewSummary.net_amount) }}</p></div>
           </div>
 
@@ -201,10 +203,11 @@
                     <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">Fee Type</th>
                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Original</th>
                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Concession</th>
-                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Sibling</th>
+                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Sibling Disc</th>
                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Scholarship</th>
                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Fine</th>
-                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Net</th>
+                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Arrears (C/F)</th>
+                    <th class="px-3 py-2 text-right text-xs font-semibold text-indigo-600">Net Amount</th>
                     <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600">Status</th>
                   </tr>
                 </thead>
@@ -221,6 +224,7 @@
                     <td class="px-3 py-2 text-sm text-right text-green-700">Rs {{ formatAmount(row.sibling_discount_amount) }}</td>
                     <td class="px-3 py-2 text-sm text-right text-green-700">Rs {{ formatAmount(row.scholarship_discount_amount) }}</td>
                     <td class="px-3 py-2 text-sm text-right text-red-700">Rs {{ formatAmount(row.fine_amount) }}</td>
+                    <td class="px-3 py-2 text-sm text-right text-yellow-700">Rs {{ formatAmount(row.arrears_amount || 0) }}</td>
                     <td class="px-3 py-2 text-sm text-right font-bold text-indigo-700">Rs {{ formatAmount(row.net_amount) }}</td>
                     <td class="px-3 py-2 text-center">
                       <span v-if="row.status === 'ready'" class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Ready</span>
