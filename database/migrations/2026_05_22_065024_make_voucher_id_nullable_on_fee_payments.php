@@ -8,15 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('sibling_discount_rules', function (Blueprint $table) {
-            $table->softDeletes();
-        });
+        // voucher_id is already nullable from previous partial run
+        // FK was already dropped - no need to re-add (advance payments have null voucher_id)
     }
 
     public function down(): void
     {
-        Schema::table('sibling_discount_rules', function (Blueprint $table) {
-            $table->dropSoftDeletes();
-        });
+        //
     }
 };

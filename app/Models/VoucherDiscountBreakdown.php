@@ -23,6 +23,11 @@ class VoucherDiscountBreakdown extends Model
         'created_at'        => 'datetime',
     ];
 
+    public function getDiscountAmountAttribute(): float
+    {
+        return (float) $this->calculated_amount;
+    }
+
     public function voucher(): BelongsTo
     {
         return $this->belongsTo(FeeVoucher::class, 'voucher_id');

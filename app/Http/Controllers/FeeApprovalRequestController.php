@@ -7,6 +7,9 @@ use App\Models\StudentEnrollment;
 use App\Models\FeeVoucher;
 use App\Models\Student;
 use App\Models\User;
+use App\Models\FeeWaiver;
+use App\Models\FeeVoucherFine;
+use App\Services\FeeVoucherBalanceService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
@@ -28,17 +31,21 @@ class FeeApprovalRequestController extends Controller
 
     public function create()
     {
-        $students = Student::select('id', 'student_name', 'admission_no', 'roll_no')
-            ->orderBy('student_name')
+        $enrollments = StudentEnrollment::with(['student:id,student_name,admission_no,roll_no', 'academicYear:id,year_name'])
+            ->where('status', 'active')
+            ->orderBy('id', 'desc')
             ->get();
 
-        $approvers = User::role(['Admin', 'Branch Manager', 'Fee Manager'])
+        $approvers = User::whereHas('role', function ($query) {
+            $query->whereIn('role_name', ['Admin', 'Branch Manager', 'Fee Manager']);
+        })
             ->select('id', 'name')
             ->orderBy('name')
             ->get();
 
         return Inertia::render('FeeApprovalRequests/Create', [
-            'students'  => $students,
+            'enrollments' => $this->formatEnrollmentOptions($enrollments),
+            'vouchers' => $this->formatVoucherOptions(),
             'approvers' => $approvers,
         ]);
     }
@@ -73,21 +80,38 @@ class FeeApprovalRequestController extends Controller
                 'requested_at'            => $feeApprovalRequest->requested_at?->format('Y-m-d H:i'),
                 'reviewed_at'             => $feeApprovalRequest->reviewed_at?->format('Y-m-d H:i'),
             ],
+            'enrollments' => $this->formatEnrollmentOptions(StudentEnrollment::with(['student:id,student_name,admission_no,roll_no', 'academicYear:id,year_name'])->where('status', 'active')->get()),
+            'vouchers' => $this->formatVoucherOptions(),
             'students'  => $students,
             'approvers' => $approvers,
         ]);
     }
 
+    public function show(FeeApprovalRequest $feeApprovalRequest)
+    {
+        $feeApprovalRequest->load(['studentEnrollment.student', 'voucher.feeType', 'requestedBy', 'reviewedBy']);
+
+        return Inertia::render('FeeApprovalRequests/Show', [
+            'request' => $feeApprovalRequest,
+        ]);
+    }
+
     private function getMobileRequests(Request $request)
     {
-        $query = FeeApprovalRequest::with(['studentEnrollment.student', 'voucher', 'requestedBy', 'reviewedBy']);
+        $query = FeeApprovalRequest::with(['studentEnrollment.student', 'voucher.feeType', 'requestedBy', 'reviewedBy']);
 
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('reason', 'like', "%{$search}%")
                   ->orWhere('request_type', 'like', "%{$search}%")
-                  ->orWhere('status', 'like', "%{$search}%");
+                  ->orWhere('status', 'like', "%{$search}%")
+                  ->orWhereHas('voucher', fn ($voucher) => $voucher->where('voucher_no', 'like', "%{$search}%"))
+                  ->orWhereHas('studentEnrollment.student', function ($student) use ($search) {
+                      $student->where('student_name', 'like', "%{$search}%")
+                          ->orWhere('admission_no', 'like', "%{$search}%")
+                          ->orWhere('roll_no', 'like', "%{$search}%");
+                  });
             });
         }
 
@@ -156,25 +180,71 @@ class FeeApprovalRequestController extends Controller
                 default  => 'bg-gray-100 text-gray-800',
             };
 
+            $student = $req->studentEnrollment?->student;
+            $voucher = $req->voucher;
+
             return [
                 'DT_RowIndex'       => $start + $index + 1,
                 'id'                => $req->id,
                 'request_type'      => '<span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">' . ucfirst(str_replace('_', ' ', $req->request_type)) . '</span>',
-                'student_name'      => $req->studentEnrollment?->student?->student_name ?? '-',
-                'admission_no'      => $req->studentEnrollment?->student?->admission_no ?? '-',
-                'voucher_no'        => $req->voucher?->voucher_no ?? '-',
+                'type_text'         => ucfirst(str_replace('_', ' ', $req->request_type)),
+                'student_name'      => $student?->student_name ?? '-',
+                'admission_no'      => $student?->admission_no ?? '-',
+                'student_html'      => '<div class="text-left"><div class="font-semibold text-gray-900">' . e($student?->student_name ?? '-') . '</div><div class="text-xs text-gray-500">' . e($student?->admission_no ?? '-') . '</div></div>',
+                'voucher_no'        => $voucher?->voucher_no ?? '-',
+                'voucher_html'      => '<div class="text-left"><div class="font-semibold text-gray-900">' . e($voucher?->voucher_no ?? '-') . '</div><div class="text-xs text-gray-500">' . e($voucher?->feeType?->fee_name ?? '-') . '</div></div>',
                 'requested_amount'  => number_format($req->requested_amount, 2),
                 'requested_percent' => $req->requested_percent ? $req->requested_percent . '%' : '-',
                 'current_amount'    => number_format($req->current_amount, 2),
+                'amount_html'       => '<div class="text-right"><div class="font-bold text-indigo-700">Rs ' . number_format((float) $req->requested_amount, 2) . '</div><div class="text-xs text-gray-500">Current Rs ' . number_format((float) $req->current_amount, 2) . '</div></div>',
                 'urgency'           => '<span class="px-2 py-1 text-xs font-medium rounded-full ' . $urgencyClass . '">' . ucfirst($req->urgency ?? '-') . '</span>',
                 'status'            => '<span class="px-2 py-1 text-xs font-medium rounded-full ' . $statusClass . '">' . ucfirst($req->status) . '</span>',
                 'requested_by'      => $req->requestedBy?->name ?? '-',
                 'reviewed_by'       => $req->reviewedBy?->name ?? '-',
                 'requested_at'      => $req->requested_at?->format('d M, Y h:i A') ?? '-',
                 'reason'            => \Illuminate\Support\Str::limit($req->reason ?? '-', 40),
+                'view_request'      => [
+                    'id' => $req->id,
+                    'request_type' => ucfirst(str_replace('_', ' ', $req->request_type)),
+                    'status' => ucfirst($req->status),
+                    'urgency' => ucfirst($req->urgency ?? '-'),
+                    'student_name' => $student?->student_name ?? '-',
+                    'admission_no' => $student?->admission_no ?? '-',
+                    'voucher_no' => $voucher?->voucher_no ?? '-',
+                    'fee_type' => $voucher?->feeType?->fee_name ?? '-',
+                    'current_amount' => number_format((float) $req->current_amount, 2),
+                    'requested_amount' => number_format((float) $req->requested_amount, 2),
+                    'requested_percent' => $req->requested_percent ? $req->requested_percent . '%' : '-',
+                    'requested_by' => $req->requestedBy?->name ?? '-',
+                    'reviewed_by' => $req->reviewedBy?->name ?? '-',
+                    'requested_at' => $req->requested_at?->format('d M, Y h:i A') ?? '-',
+                    'reviewed_at' => $req->reviewed_at?->format('d M, Y h:i A') ?? '-',
+                    'reason' => $req->reason ?? '-',
+                    'supporting_notes' => $req->supporting_notes ?? '-',
+                    'reviewer_remarks' => $req->reviewer_remarks ?? '-',
+                ],
                 'action'            => '
                     <div class="flex items-center justify-center gap-2">
-                        <button onclick=\'viewRequest(' . json_encode(['id' => $req->id]) . ')\' class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                        <button onclick=\'viewRequest(' . json_encode([
+                            'id' => $req->id,
+                            'request_type' => ucfirst(str_replace('_', ' ', $req->request_type)),
+                            'status' => ucfirst($req->status),
+                            'urgency' => ucfirst($req->urgency ?? '-'),
+                            'student_name' => $student?->student_name ?? '-',
+                            'admission_no' => $student?->admission_no ?? '-',
+                            'voucher_no' => $voucher?->voucher_no ?? '-',
+                            'fee_type' => $voucher?->feeType?->fee_name ?? '-',
+                            'current_amount' => number_format((float) $req->current_amount, 2),
+                            'requested_amount' => number_format((float) $req->requested_amount, 2),
+                            'requested_percent' => $req->requested_percent ? $req->requested_percent . '%' : '-',
+                            'requested_by' => $req->requestedBy?->name ?? '-',
+                            'reviewed_by' => $req->reviewedBy?->name ?? '-',
+                            'requested_at' => $req->requested_at?->format('d M, Y h:i A') ?? '-',
+                            'reviewed_at' => $req->reviewed_at?->format('d M, Y h:i A') ?? '-',
+                            'reason' => $req->reason ?? '-',
+                            'supporting_notes' => $req->supporting_notes ?? '-',
+                            'reviewer_remarks' => $req->reviewer_remarks ?? '-',
+                        ]) . ')\' class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
                             <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
@@ -223,7 +293,7 @@ class FeeApprovalRequestController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'request_type'            => 'required|string|in:fee_concession,fee_waiver,fine_waiver,installment_plan,fee_refund',
+            'request_type'            => 'required|string|in:fee_concession,fee_waiver,fine_waiver,installment_plan,fee_refund,discount,waiver,refund,late_fee_waiver,fee_edit',
             'student_enrollment_id'   => 'required|exists:student_enrollments,id',
             'voucher_id'              => 'nullable|exists:fee_vouchers,id',
             'requested_amount'        => 'required|numeric|min:0',
@@ -231,7 +301,7 @@ class FeeApprovalRequestController extends Controller
             'current_amount'          => 'required|numeric|min:0',
             'reason'                  => 'required|string',
             'supporting_notes'        => 'nullable|string',
-            'urgency'                 => 'required|string|in:low,medium,high',
+            'urgency'                 => 'required|string|in:low,medium,high,normal,urgent',
             'status'                  => 'nullable|string|in:pending,approved,rejected,processed',
             'reviewer_remarks'        => 'nullable|string',
         ]);
@@ -240,6 +310,7 @@ class FeeApprovalRequestController extends Controller
         $validated['requested_at'] = now();
         $validated['status'] = $validated['status'] ?? 'pending';
 
+        $this->guardVoucherEnrollment($validated);
         FeeApprovalRequest::create($validated);
 
         return redirect()->route('fee-approval-requests.index')
@@ -249,7 +320,7 @@ class FeeApprovalRequestController extends Controller
     public function update(Request $request, FeeApprovalRequest $feeApprovalRequest)
     {
         $validated = $request->validate([
-            'request_type'            => 'required|string|in:fee_concession,fee_waiver,fine_waiver,installment_plan,fee_refund',
+            'request_type'            => 'required|string|in:fee_concession,fee_waiver,fine_waiver,installment_plan,fee_refund,discount,waiver,refund,late_fee_waiver,fee_edit',
             'student_enrollment_id'   => 'required|exists:student_enrollments,id',
             'voucher_id'              => 'nullable|exists:fee_vouchers,id',
             'requested_amount'        => 'required|numeric|min:0',
@@ -257,11 +328,12 @@ class FeeApprovalRequestController extends Controller
             'current_amount'          => 'required|numeric|min:0',
             'reason'                  => 'required|string',
             'supporting_notes'        => 'nullable|string',
-            'urgency'                 => 'required|string|in:low,medium,high',
+            'urgency'                 => 'required|string|in:low,medium,high,normal,urgent',
             'status'                  => 'nullable|string|in:pending,approved,rejected,processed',
             'reviewer_remarks'        => 'nullable|string',
         ]);
 
+        $this->guardVoucherEnrollment($validated);
         $feeApprovalRequest->update($validated);
 
         return redirect()->route('fee-approval-requests.index')
@@ -311,14 +383,23 @@ class FeeApprovalRequestController extends Controller
         // For example, if request_type is 'fee_concession', create a StudentFeeConcession
         // This is a placeholder for the business logic
 
-        match ($request->request_type) {
+        $action = match ($request->request_type) {
             'fee_concession' => $this->createFeeConcession($request),
-            'fee_waiver' => $this->createFeeWaiver($request),
-            'fine_waiver' => $this->createFineWaiver($request),
+            'fee_waiver', 'waiver' => $this->createFeeWaiver($request),
+            'fine_waiver', 'late_fee_waiver', 'bounce_penalty_waiver' => $this->createFineWaiver($request),
             'installment_plan' => $this->createInstallmentAssignment($request),
-            'fee_refund' => $this->createFeeRefund($request),
+            'fee_refund', 'refund' => $this->createFeeRefund($request),
             default => null,
         };
+
+        if ($action) {
+            $request->update([
+                'status' => 'processed',
+                'action_reference_type' => $action::class,
+                'action_reference_id' => $action->id,
+                'action_taken_at' => now(),
+            ]);
+        }
     }
 
     private function createFeeConcession(FeeApprovalRequest $request)
@@ -328,12 +409,75 @@ class FeeApprovalRequestController extends Controller
 
     private function createFeeWaiver(FeeApprovalRequest $request)
     {
-        // Implementation for creating fee waiver
+        if (!$request->voucher_id || $request->requested_amount <= 0) {
+            return null;
+        }
+
+        $voucher = FeeVoucher::whereKey($request->voucher_id)->lockForUpdate()->firstOrFail();
+        $waiver = FeeWaiver::create([
+            'voucher_id' => $voucher->id,
+            'student_enrollment_id' => $voucher->student_enrollment_id,
+            'waived_amount' => min((float) $request->requested_amount, (float) $voucher->remaining_amount),
+            'waiver_reason' => $request->reason,
+            'approved_by' => auth()->id() ?? 1,
+            'approved_on' => now()->toDateString(),
+            'status' => 'approved',
+            'notes' => 'Created from approval request #' . $request->id,
+        ]);
+
+        app(FeeVoucherBalanceService::class)->sync($voucher);
+
+        return $waiver;
     }
 
     private function createFineWaiver(FeeApprovalRequest $request)
     {
-        // Implementation for creating fine waiver
+        if (!$request->voucher_id) {
+            return null;
+        }
+
+        $voucher = FeeVoucher::whereKey($request->voucher_id)->lockForUpdate()->firstOrFail();
+
+        // If a specific fine was targeted during the intercept
+        if ($request->action_reference_type === \App\Models\FeeVoucherFine::class && $request->action_reference_id) {
+            $fine = FeeVoucherFine::find($request->action_reference_id);
+            if ($fine && !$fine->is_waived) {
+                $fine->update([
+                    'is_waived' => true,
+                    'waived_by' => auth()->id() ?? 1,
+                    'notes' => trim(($fine->notes ? $fine->notes . "\n" : '') . 'Waived from approval request #' . $request->id . ': ' . $request->reason),
+                ]);
+                app(FeeVoucherBalanceService::class)->sync($voucher);
+                return $fine;
+            }
+        }
+
+        // Fallback: Waive any active fines up to the requested amount
+        $remaining = (float) ($request->requested_amount ?: $voucher->fine_amount);
+        $lastFine = null;
+
+        $fines = FeeVoucherFine::where('voucher_id', $voucher->id)
+            ->where('is_waived', false)
+            ->orderBy('applied_on')
+            ->get();
+
+        foreach ($fines as $fine) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $fine->update([
+                'is_waived' => true,
+                'waived_by' => auth()->id() ?? 1,
+                'notes' => trim(($fine->notes ? $fine->notes . "\n" : '') . 'Waived from approval request #' . $request->id . ': ' . $request->reason),
+            ]);
+            $remaining -= (float) $fine->calculated_amount;
+            $lastFine = $fine;
+        }
+
+        app(FeeVoucherBalanceService::class)->sync($voucher);
+
+        return $lastFine;
     }
 
     private function createInstallmentAssignment(FeeApprovalRequest $request)
@@ -343,7 +487,75 @@ class FeeApprovalRequestController extends Controller
 
     private function createFeeRefund(FeeApprovalRequest $request)
     {
-        // Implementation for creating fee refund
+        if ($request->action_reference_type === \App\Models\FeePayment::class && $request->action_reference_id) {
+            $payment = \App\Models\FeePayment::with('voucher')->findOrFail($request->action_reference_id);
+            $refund = \App\Models\FeeRefund::create([
+                'student_enrollment_id' => $request->student_enrollment_id,
+                'payment_id'            => $payment->id,
+                'refund_amount'         => $request->requested_amount,
+                'refund_date'           => now()->toDateString(),
+                'reason'                => $request->reason,
+                'status'                => 'approved',
+                'notes'                 => trim('Created from approval request #' . $request->id . "\n" . $request->supporting_notes),
+                'refunded_by'           => auth()->id() ?? 1,
+            ]);
+
+            if ($payment->voucher) {
+                app(\App\Services\FeeVoucherBalanceService::class)->sync($payment->voucher);
+            }
+
+            return $refund;
+        }
+
+        return null;
+    }
+
+    private function guardVoucherEnrollment(array $data): void
+    {
+        if (empty($data['voucher_id'])) {
+            return;
+        }
+
+        $voucher = FeeVoucher::findOrFail($data['voucher_id']);
+        if ((int) $voucher->student_enrollment_id !== (int) $data['student_enrollment_id']) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'voucher_id' => 'Selected voucher does not belong to the selected enrollment.',
+            ]);
+        }
+    }
+
+    private function formatEnrollmentOptions($enrollments)
+    {
+        return $enrollments->map(function ($enrollment) {
+            $student = $enrollment->student;
+            return [
+                'id' => $enrollment->id,
+                'label' => ($student?->student_name ?? 'Unknown student') . ' - ' . ($student?->admission_no ?? '-'),
+                'subtitle' => 'Roll ' . ($student?->roll_no ?? '-') . ' - ' . ($enrollment->academicYear?->year_name ?? '-'),
+                'search' => implode(' ', [$student?->student_name, $student?->admission_no, $student?->roll_no]),
+            ];
+        })->values();
+    }
+
+    private function formatVoucherOptions()
+    {
+        return FeeVoucher::with(['studentEnrollment.student:id,student_name,admission_no,roll_no', 'feeType:id,fee_name'])
+            ->orderBy('id', 'desc')
+            ->get()
+            ->map(function ($voucher) {
+                $student = $voucher->studentEnrollment?->student;
+                return [
+                    'id' => $voucher->id,
+                    'label' => $voucher->voucher_no . ' - ' . ($student?->student_name ?? 'Unknown student'),
+                    'subtitle' => ($voucher->feeType?->fee_name ?? '-') . ' - Remaining Rs ' . number_format((float) $voucher->remaining_amount, 2),
+                    'amount_label' => 'Rs ' . number_format((float) $voucher->remaining_amount, 2),
+                    'student_enrollment_id' => $voucher->student_enrollment_id,
+                    'remaining_amount' => (float) $voucher->remaining_amount,
+                    'net_amount' => (float) $voucher->net_amount,
+                    'search' => implode(' ', [$voucher->voucher_no, $student?->student_name, $student?->admission_no, $student?->roll_no, $voucher->feeType?->fee_name]),
+                ];
+            })
+            ->values();
     }
 
     public function destroy(FeeApprovalRequest $feeApprovalRequest)

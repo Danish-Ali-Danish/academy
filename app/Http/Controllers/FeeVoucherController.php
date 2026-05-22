@@ -3,11 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\FeeVoucher;
+use App\Models\AcademicYear;
+use App\Models\Branch;
+use App\Models\Classes;
+use App\Models\FeeType;
+use App\Models\FeeStructure;
+use App\Models\StudentEnrollment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use App\Services\FeeGenerationService;
+use App\Services\FeeStructureVersioningService;
+use App\Models\FeeVoucherEditHistory;
 
 class FeeVoucherController extends Controller
 {
@@ -32,7 +40,9 @@ class FeeVoucherController extends Controller
             return $this->getDataTablesVouchers($request);
         }
 
-        return Inertia::render('FeeVouchers/Index');
+        return Inertia::render('FeeVouchers/Index', [
+            'generatorOptions' => $this->getGeneratorOptions(),
+        ]);
     }
 
     /**
@@ -40,24 +50,60 @@ class FeeVoucherController extends Controller
      */
     public function generateMonthlyVouchers(Request $request)
     {
-        $request->validate([
-            'branch_id' => 'required|exists:branches,id',
+        $validated = $request->validate([
+            'branch_id' => 'nullable|exists:branches,id',
+            'class_id' => 'nullable|exists:classes,id',
+            'fee_type_id' => 'nullable|exists:fee_types,id',
+            'student_enrollment_id' => 'nullable|exists:student_enrollments,id',
             'academic_year_id' => 'required|exists:academic_years,id',
             'month' => 'required|integer|between:1,12',
             'year' => 'required|integer'
         ]);
 
-        $result = $this->feeGenerationService->generateMonthlyVouchers(
-            $request->branch_id,
-            $request->academic_year_id,
-            $request->month,
-            $request->year
-        );
+        $result = $this->feeGenerationService->generateMonthlyVouchers($validated);
+
+        if ($request->expectsJson()) {
+            return response()->json($result, $result['success'] ? 200 : 422);
+        }
 
         if ($result['success']) {
             return redirect()->back()->with('success', $result['message']);
         }
         return redirect()->back()->with('error', $result['message']);
+    }
+
+    public function previewMonthlyVouchers(Request $request)
+    {
+        $validated = $request->validate([
+            'branch_id' => 'nullable|exists:branches,id',
+            'class_id' => 'nullable|exists:classes,id',
+            'fee_type_id' => 'nullable|exists:fee_types,id',
+            'student_enrollment_id' => 'nullable|exists:student_enrollments,id',
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'month' => 'required|integer|between:1,12',
+            'year' => 'required|integer|min:2000|max:2100',
+        ]);
+
+        return response()->json($this->feeGenerationService->previewMonthlyVouchers($validated));
+    }
+
+    public function enrollmentsByStudent($studentId)
+    {
+        $enrollments = StudentEnrollment::where('student_id', $studentId)
+            ->where('status', 'active')
+            ->with(['academicYear:id,year_name', 'branch:id,branch_name', 'classSection.branchClass.class', 'classSection.section'])
+            ->get()
+            ->map(fn ($enrollment) => [
+                'id' => $enrollment->id,
+                'academic_year_id' => $enrollment->academic_year_id,
+                'academic_year' => $enrollment->academicYear?->year_name ?? '-',
+                'branch_name' => $enrollment->branch?->branch_name ?? '-',
+                'class_name' => $enrollment->classSection?->branchClass?->class?->class_name ?? '-',
+                'section_name' => $enrollment->classSection?->section?->section_name ?? '-',
+                'roll_number' => $enrollment->roll_number,
+            ]);
+
+        return response()->json($enrollments);
     }
 
     public function recalculate(FeeVoucher $feeVoucher)
@@ -83,6 +129,27 @@ class FeeVoucherController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->boolean('auto_calculate')) {
+            $validated = $request->validate([
+                'student_enrollment_id' => ['required', 'exists:student_enrollments,id'],
+                'fee_type_id' => ['required', 'exists:fee_types,id'],
+                'academic_year_id' => ['required', 'exists:academic_years,id'],
+                'month' => ['required', 'integer', 'min:1', 'max:12'],
+                'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            ]);
+
+            $result = $this->feeGenerationService->generateMonthlyVouchers($validated);
+
+            if ($result['success'] && ($result['count'] ?? 0) > 0) {
+                return redirect()->route('fee-vouchers.index')
+                    ->with('success', 'Fee voucher auto-calculated and created successfully!');
+            }
+
+            return redirect()->back()
+                ->withInput()
+                ->with('error', $result['message'] ?? 'Voucher could not be generated. It may already exist.');
+        }
+
         $validated = $this->validateVoucher($request);
         $validated['generated_by'] = auth()->id();
 
@@ -90,6 +157,7 @@ class FeeVoucherController extends Controller
             if (empty($validated['voucher_no'])) {
                 $validated['voucher_no'] = $this->generateVoucherNo();
             }
+            $this->attachFeeStructureVersion($validated);
             FeeVoucher::create($validated);
         });
 
@@ -100,8 +168,10 @@ class FeeVoucherController extends Controller
     public function update(Request $request, FeeVoucher $feeVoucher)
     {
         $validated = $this->validateVoucher($request, $feeVoucher);
+        $before = $feeVoucher->only($this->historyFields());
 
         $feeVoucher->update($validated);
+        $this->recordEditHistory($feeVoucher->fresh(), $before, $validated, $request->input('edit_reason'));
 
         return redirect()->route('fee-vouchers.index')
             ->with('success', 'Fee voucher updated successfully!');
@@ -112,6 +182,8 @@ class FeeVoucherController extends Controller
         if ($feeVoucher->payments()->exists()) {
             return back()->with('error', 'Cannot delete a voucher that has existing payments.');
         }
+
+        $this->recordEditHistory($feeVoucher, $feeVoucher->only($this->historyFields()), ['deleted' => true], 'Voucher deleted');
 
         $feeVoucher->delete();
 
@@ -138,6 +210,28 @@ class FeeVoucherController extends Controller
                 ->get(),
 
             'academicYears' => \App\Models\AcademicYear::select('id', 'year_name')
+                ->orderBy('start_date', 'desc')
+                ->get(),
+        ];
+    }
+
+    private function getGeneratorOptions(): array
+    {
+        return [
+            'branches' => Branch::select('id', 'branch_name')
+                ->where('is_active', true)
+                ->orderBy('branch_name')
+                ->get(),
+            'classes' => Classes::select('id', 'class_name')
+                ->where('is_active', true)
+                ->orderBy('display_order')
+                ->orderBy('class_name')
+                ->get(),
+            'feeTypes' => FeeType::select('id', 'fee_name')
+                ->where('is_active', true)
+                ->orderBy('fee_name')
+                ->get(),
+            'academicYears' => AcademicYear::select('id', 'year_name')
                 ->orderBy('start_date', 'desc')
                 ->get(),
         ];
@@ -310,14 +404,16 @@ class FeeVoucherController extends Controller
             };
 
             $studentName = $voucher->studentEnrollment?->student?->student_name ?? '-';
+            $rollNo = $voucher->studentEnrollment?->student?->roll_no ?? '-';
+            $breakdownUrl = route('voucher-discount-breakdowns.index', ['voucher_id' => $voucher->id]);
 
             return [
                 'DT_RowIndex'      => $start + $index + 1,
                 'id'               => $voucher->id,
-                'voucher_no'       => $voucher->voucher_no,
-                'student_name'     => $studentName,
+                'voucher_no'       => '<span class="font-semibold text-gray-900">' . e($voucher->voucher_no) . '</span>',
+                'student_name'     => '<div class="text-left"><div class="font-medium text-gray-900">' . e($studentName) . '</div><div class="text-xs text-gray-500">' . e($rollNo) . '</div></div>',
                 'fee_type'         => $voucher->feeType?->fee_name ?? '-',
-                'month_year'       => $voucher->month . '/' . $voucher->year,
+                'month_year'       => $this->monthName((int) $voucher->month) . ' ' . $voucher->year,
                 'net_amount'       => number_format($voucher->net_amount, 2),
                 'paid_amount'      => number_format($voucher->paid_amount, 2),
                 'remaining_amount' => number_format($voucher->remaining_amount, 2),
@@ -335,6 +431,15 @@ class FeeVoucherController extends Controller
                                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                             </svg>
                             Edit
+                        </button>
+                        <button
+                            onclick="window.location.href=\'' . $breakdownUrl . '\'"
+                            class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 17v-6a2 2 0 012-2h8M9 17H7a2 2 0 01-2-2V7a2 2 0 012-2h8a2 2 0 012 2v2m-8 8h8a2 2 0 002-2v-4"/>
+                            </svg>
+                            Breakdown
                         </button>
                         <button
                             onclick="deleteVoucher(' . $voucher->id . ')"
@@ -355,6 +460,110 @@ class FeeVoucherController extends Controller
             'recordsTotal'    => FeeVoucher::count(),   // unfiltered total
             'recordsFiltered' => $recordsFiltered,       // filtered total (was wrong before)
             'data'            => $data,
+        ]);
+    }
+
+    private function monthName(int $month): string
+    {
+        return [
+            1 => 'Jan',
+            2 => 'Feb',
+            3 => 'Mar',
+            4 => 'Apr',
+            5 => 'May',
+            6 => 'Jun',
+            7 => 'Jul',
+            8 => 'Aug',
+            9 => 'Sep',
+            10 => 'Oct',
+            11 => 'Nov',
+            12 => 'Dec',
+        ][$month] ?? (string) $month;
+    }
+
+    private function attachFeeStructureVersion(array &$voucherData): void
+    {
+        if (!empty($voucherData['fee_structure_id'])) {
+            return;
+        }
+
+        $enrollment = StudentEnrollment::with('classSection.branchClass')
+            ->find($voucherData['student_enrollment_id'] ?? null);
+
+        $classId = $enrollment?->classSection?->branchClass?->class_id;
+        if (!$enrollment || !$classId) {
+            return;
+        }
+
+        $structure = FeeStructure::active()
+            ->where('academic_year_id', $voucherData['academic_year_id'] ?? null)
+            ->where('branch_id', $enrollment->branch_id)
+            ->where('class_id', $classId)
+            ->where('fee_type_id', $voucherData['fee_type_id'] ?? null)
+            ->latest('version_no')
+            ->first();
+
+        if (!$structure) {
+            return;
+        }
+
+        $voucherData['fee_structure_id'] = $structure->id;
+        $voucherData['fee_structure_version_id'] = app(FeeStructureVersioningService::class)->currentVersionId($structure);
+    }
+
+    private function historyFields(): array
+    {
+        return [
+            'fee_type_id',
+            'academic_year_id',
+            'month',
+            'year',
+            'generated_for',
+            'original_amount',
+            'discount_amount',
+            'fine_amount',
+            'net_amount',
+            'paid_amount',
+            'remaining_amount',
+            'due_date',
+            'status',
+            'notes',
+        ];
+    }
+
+    private function recordEditHistory(FeeVoucher $voucher, array $before, array $after, ?string $reason = null): void
+    {
+        $changes = [];
+        foreach ($this->historyFields() as $field) {
+            if (!array_key_exists($field, $after)) {
+                continue;
+            }
+
+            $old = $before[$field] ?? null;
+            $new = $after[$field] ?? null;
+
+            if ((string) $old !== (string) $new) {
+                $changes[$field] = ['old' => $old, 'new' => $new];
+            }
+        }
+
+        if (($after['deleted'] ?? false) === true) {
+            $changes['deleted'] = ['old' => 'No', 'new' => 'Yes'];
+        }
+
+        if (empty($changes)) {
+            return;
+        }
+
+        FeeVoucherEditHistory::create([
+            'voucher_id' => $voucher->id,
+            'student_enrollment_id' => $voucher->student_enrollment_id,
+            'edit_reason' => $reason ?: ($after['notes'] ?? 'Voucher updated'),
+            'changes' => $changes,
+            'edited_by' => auth()->id() ?? 1,
+            'edited_at' => now(),
+            'requires_approval' => false,
+            'approval_request_id' => null,
         ]);
     }
 }

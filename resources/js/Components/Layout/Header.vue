@@ -6,13 +6,24 @@
   <header class="sticky top-0 z-40 bg-white shadow-sm">
     <div class="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
       
-      <!-- Mobile menu button -->
-      <button
-        @click="$emit('toggle-sidebar')"
-        class="lg:hidden -m-2.5 p-2.5 text-gray-700"
-      >
-        <Bars3Icon class="h-6 w-6" />
-      </button>
+      <div class="flex items-center gap-4">
+        <!-- Mobile menu button -->
+        <button
+          @click="$emit('toggle-sidebar')"
+          class="lg:hidden -m-2.5 p-2.5 text-gray-700 hover:text-indigo-600 transition"
+        >
+          <Bars3Icon class="h-6 w-6" />
+        </button>
+
+        <!-- Desktop collapse button -->
+        <button
+          @click="$emit('toggle-collapse')"
+          class="hidden lg:block -m-2.5 p-2.5 text-gray-700 hover:text-indigo-600 transition"
+        >
+          <Bars3CenterLeftIcon class="h-6 w-6" v-if="!collapsed" />
+          <Bars3Icon class="h-6 w-6" v-else />
+        </button>
+      </div>
 
       <!-- Breadcrumb / Page Title -->
       <div class="flex-1 lg:flex lg:items-center">
@@ -86,9 +97,13 @@
 import { computed } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/vue'
-import { Bars3Icon, BellIcon, ChevronDownIcon } from '@heroicons/vue/24/outline'
+import { Bars3Icon, Bars3CenterLeftIcon, BellIcon, ChevronDownIcon } from '@heroicons/vue/24/outline'
 
-defineEmits(['toggle-sidebar'])
+defineProps({
+  collapsed: Boolean
+})
+
+defineEmits(['toggle-sidebar', 'toggle-collapse'])
 
 const page = usePage()
 

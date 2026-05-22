@@ -4,12 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    use Notifiable;
+    use HasFactory, Notifiable;
 
     protected $fillable = [
         'role_id', 'branch_id', 'name', 'phone',
@@ -43,6 +44,16 @@ class User extends Authenticatable
     public function hasRole(string $role): bool
     {
         return $this->role?->role_name === $role;
+    }
+
+    public function hasAnyRole(array $roles): bool
+    {
+        if (!$this->role) return false;
+        
+        $userRole = strtolower($this->role->role_name);
+        $roles = array_map('strtolower', $roles);
+        
+        return in_array($userRole, $roles, true);
     }
 
     public function hasPermission(string $permissionKey): bool

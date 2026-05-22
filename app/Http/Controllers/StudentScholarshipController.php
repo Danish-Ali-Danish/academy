@@ -7,6 +7,8 @@ use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\Scholarship;
 use App\Models\AcademicYear;
+use App\Models\FeeVoucher;
+use App\Services\FeeGenerationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -72,6 +74,60 @@ class StudentScholarshipController extends Controller
         ]);
     }
 
+    public function show(StudentScholarship $studentScholarship)
+    {
+        $studentScholarship->load([
+            'studentEnrollment.student',
+            'studentEnrollment.academicYear',
+            'studentEnrollment.classSection.branchClass.class',
+            'studentEnrollment.classSection.section',
+            'scholarship.feeType',
+            'academicYear',
+            'awardedBy',
+        ]);
+
+        $enrollment = $studentScholarship->studentEnrollment;
+        $scholarship = $studentScholarship->scholarship;
+
+        return response()->json([
+            'id' => $studentScholarship->id,
+            'student' => [
+                'name' => $enrollment?->student?->student_name ?? 'N/A',
+                'roll_no' => $enrollment?->student?->roll_no ?? 'N/A',
+                'admission_no' => $enrollment?->student?->admission_no ?? 'N/A',
+                'father_name' => $enrollment?->student?->father_name ?? 'N/A',
+            ],
+            'class_info' => [
+                'class_name' => $enrollment?->classSection?->branchClass?->class?->class_name ?? 'N/A',
+                'section_name' => $enrollment?->classSection?->section?->section_name ?? 'N/A',
+                'academic_year' => $enrollment?->academicYear?->year_name ?? 'N/A',
+            ],
+            'scholarship' => [
+                'name' => $scholarship?->scholarship_name ?? 'N/A',
+                'criteria' => $scholarship?->criteria,
+                'discount_type' => $scholarship?->discount_type ?? 'N/A',
+                'discount_value' => $scholarship?->discount_value,
+                'applies_to' => $scholarship?->applies_to ?? 'N/A',
+                'fee_type' => $scholarship?->feeType?->fee_name ?? 'All Fee Types',
+                'is_renewable' => (bool) ($scholarship?->is_renewable ?? false),
+                'description' => $scholarship?->description,
+            ],
+            'award' => [
+                'academic_year' => $studentScholarship->academicYear?->year_name ?? 'N/A',
+                'awarded_on' => $studentScholarship->awarded_on?->format('d M, Y') ?? 'N/A',
+                'valid_from' => $studentScholarship->valid_from?->format('d M, Y') ?? 'N/A',
+                'valid_to' => $studentScholarship->valid_to?->format('d M, Y') ?? 'Ongoing',
+                'position_achieved' => $studentScholarship->position_achieved ?? 'N/A',
+                'marks_percentage' => $studentScholarship->marks_percentage,
+                'status' => $studentScholarship->status ?? 'N/A',
+                'revoke_reason' => $studentScholarship->revoke_reason,
+                'notes' => $studentScholarship->notes,
+                'awarded_by' => $studentScholarship->awardedBy?->name ?? 'N/A',
+                'created_at' => $studentScholarship->created_at?->format('d M, Y h:i A') ?? 'N/A',
+            ],
+        ]);
+    }
+
     /**
      * API: Get enrollments for a specific student (for cascading dropdown)
      */
@@ -130,7 +186,7 @@ class StudentScholarshipController extends Controller
                 'awarded_on'       => $s->awarded_on?->format('d M, Y') ?? '-',
                 'valid_period'     => ($s->valid_from?->format('d M, Y') ?? '-') . ' to ' . ($s->valid_to?->format('d M, Y') ?? 'Ongoing'),
                 'status' => '<span class="px-2 py-1 text-xs font-medium rounded-full ' . $statusClass . '">' . ucfirst($s->status) . '</span>',
-                'action' => '<div class="flex items-center justify-center gap-2"><button onclick=\'editScholarship(' . json_encode(['id' => $s->id]) . ')\' class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"><svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>Edit</button><button onclick="deleteScholarship(' . $s->id . ')" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"><svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>Delete</button></div>'
+                'action' => '<div class="flex items-center justify-center gap-2"><button onclick=\'showScholarship(' . json_encode(['id' => $s->id]) . ')\' class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"><svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>View</button><button onclick=\'editScholarship(' . json_encode(['id' => $s->id]) . ')\' class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"><svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>Edit</button><button onclick="deleteScholarship(' . $s->id . ')" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"><svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>Delete</button></div>'
             ];
         });
         return response()->json(['draw' => intval($request->input('draw')), 'recordsTotal' => $totalData, 'recordsFiltered' => $totalData, 'data' => $data]);
@@ -165,7 +221,9 @@ class StudentScholarshipController extends Controller
         }
 
         $validated['awarded_by'] = auth()->id();
-        StudentScholarship::create($validated);
+        $scholarship = StudentScholarship::create($validated);
+        $this->recalculateAffectedVouchers($scholarship->student_enrollment_id, $scholarship->academic_year_id);
+
         return redirect()->route('student-scholarships.index')->with('success', 'Scholarship assigned successfully!');
     }
 
@@ -198,13 +256,31 @@ class StudentScholarshipController extends Controller
                 ->with('error', 'This scholarship is already assigned to the student for this academic year. Please edit the existing record.');
         }
 
+        $oldAcademicYearId = $studentScholarship->academic_year_id;
+
         $studentScholarship->update($validated);
+        $this->recalculateAffectedVouchers($studentScholarship->student_enrollment_id, $oldAcademicYearId);
+        $this->recalculateAffectedVouchers($studentScholarship->student_enrollment_id, $studentScholarship->academic_year_id);
+
         return redirect()->route('student-scholarships.index')->with('success', 'Scholarship updated successfully!');
     }
 
     public function destroy(StudentScholarship $studentScholarship)
     {
+        $studentEnrollmentId = $studentScholarship->student_enrollment_id;
+        $academicYearId = $studentScholarship->academic_year_id;
         $studentScholarship->delete();
+        $this->recalculateAffectedVouchers($studentEnrollmentId, $academicYearId);
+
         return back()->with('success', 'Scholarship assignment deleted successfully!');
+    }
+
+    private function recalculateAffectedVouchers(int $studentEnrollmentId, int $academicYearId): void
+    {
+        FeeVoucher::where('student_enrollment_id', $studentEnrollmentId)
+            ->where('academic_year_id', $academicYearId)
+            ->whereIn('status', ['pending', 'partial', 'paid'])
+            ->get()
+            ->each(fn(FeeVoucher $voucher) => app(FeeGenerationService::class)->recalculateVoucher($voucher));
     }
 }

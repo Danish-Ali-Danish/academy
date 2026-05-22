@@ -8,8 +8,8 @@
         <div class="mb-4 sm:mb-6 lg:mb-8">
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div>
-              <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Installment Assignments</h1>
-              <p class="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-600">Manage student installment plan assignments</p>
+              <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Installments & Schedule</h1>
+              <p class="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-600">Assign installment plans and manage their kist schedule in one place</p>
             </div>
             <Button
               @click="$inertia.visit(route('student-installment-assignments.create'))"
@@ -168,7 +168,7 @@
                   <svg class="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
                   </svg>
-                  <span class="text-gray-600">Total: Rs {{ formatAmount(assignment.total_amount) }}</span>
+                  <span class="text-gray-600">Total: Rs {{ formatAmount(assignment.effective_total_amount ?? assignment.total_amount) }}</span>
                 </div>
                 <div class="flex items-center text-xs sm:text-sm">
                   <svg class="w-4 h-4 text-green-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -180,7 +180,7 @@
                   <svg class="w-4 h-4 text-red-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
-                  <span class="text-red-600 font-semibold">Remaining: Rs {{ formatAmount(assignment.remaining_amount) }}</span>
+                  <span class="text-red-600 font-semibold">Remaining: Rs {{ formatAmount(assignment.effective_remaining_amount ?? assignment.remaining_amount) }}</span>
                 </div>
               </div>
 

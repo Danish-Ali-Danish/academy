@@ -22,8 +22,7 @@ class FeeVoucherEditHistory extends Model
     protected $casts = [
         'edited_at' => 'datetime',
         'requires_approval' => 'boolean',
-        // Depending on your DB format, 'changes' might be json
-        // 'changes' => 'array',
+        'changes' => 'array',
     ];
 
     // Disable auto-timestamps if they are not in the table
@@ -46,9 +45,8 @@ class FeeVoucherEditHistory extends Model
         return $this->belongsTo(User::class, 'edited_by');
     }
 
-    // If there is an ApprovalRequest model
-    // public function approvalRequest()
-    // {
-    //     return $this->belongsTo(FeeApprovalRequest::class, 'approval_request_id');
-    // }
+    public function approvalRequest()
+    {
+        return $this->belongsTo(FeeApprovalRequest::class, 'approval_request_id');
+    }
 }

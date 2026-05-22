@@ -1,241 +1,309 @@
+<template>
+  <AppLayout>
+    <div class="min-h-screen flex flex-col">
+      <div class="flex-1 px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8">
+        <div class="mb-4 sm:mb-6 lg:mb-8">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div>
+              <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Fee Approval Requests</h1>
+              <p class="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-600">Track approvals for waivers, fines, refunds, concessions, installments and voucher edits</p>
+            </div>
+            <Button @click="$inertia.visit(route('fee-approval-requests.create'))" variant="primary" class="w-full sm:w-auto shadow-lg hover:shadow-xl transition-all text-sm">
+              <PlusIcon class="h-4 w-4 mr-2" />
+              New Request
+            </Button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <Input v-model="filters.search" placeholder="Search request, voucher, student..." @input="searchDebounced" class="w-full text-sm" />
+            <select v-model="filters.request_type" @change="loadData" class="w-full px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">All Request Types</option>
+              <option v-for="type in requestTypes" :key="type.id" :value="type.id">{{ type.label }}</option>
+            </select>
+            <select v-model="filters.status" @change="loadData" class="w-full px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="processed">Processed</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <Button variant="secondary" @click="resetFilters" class="w-full shadow-sm hover:shadow-md transition-all text-sm">Reset Filters</Button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg sm:rounded-xl shadow-lg overflow-hidden">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-gray-50 gap-3">
+            <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <span class="text-xs sm:text-sm text-gray-700">Show</span>
+              <select v-model="perPage" @change="changePerPage" class="px-3 sm:px-6 py-1.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              <span class="text-xs sm:text-sm text-gray-700">entries</span>
+            </div>
+
+            <div class="w-full sm:w-72">
+              <div class="relative">
+                <input v-model="tableSearch" @input="tableSearchDebounced" type="text" placeholder="Search in table..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm" />
+                <MagnifyingGlassIcon class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              </div>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table id="approval-requests-table" class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gradient-to-r from-indigo-50 to-blue-50">
+                <tr>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">#</th>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Type</th>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Student</th>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Voucher</th>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Amount</th>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Urgency</th>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Status</th>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Requested</th>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white text-center divide-y divide-gray-100"></tbody>
+            </table>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 bg-gray-50 gap-3 sm:gap-4">
+            <div class="text-xs sm:text-sm text-gray-600" id="table-info"></div>
+            <div id="table-pagination"></div>
+          </div>
+        </div>
+      </div>
+
+      <Modal :show="showViewModal" max-width="4xl" @close="showViewModal = false">
+        <template #title>Approval Request Details</template>
+        <div v-if="selectedRequest" class="space-y-5 text-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="rounded-lg bg-indigo-50 p-4">
+              <p class="text-xs font-semibold uppercase tracking-wide text-indigo-500">Type</p>
+              <p class="mt-1 font-bold text-gray-900">{{ selectedRequest.request_type }}</p>
+              <p class="mt-2 text-xs text-gray-500">{{ selectedRequest.urgency }} urgency</p>
+            </div>
+            <div class="rounded-lg bg-green-50 p-4">
+              <p class="text-xs font-semibold uppercase tracking-wide text-green-600">Requested</p>
+              <p class="mt-1 text-lg font-bold text-green-700">Rs {{ selectedRequest.requested_amount }}</p>
+              <p class="mt-2 text-xs text-gray-500">Current Rs {{ selectedRequest.current_amount }}</p>
+            </div>
+            <div class="rounded-lg bg-blue-50 p-4">
+              <p class="text-xs font-semibold uppercase tracking-wide text-blue-500">Status</p>
+              <p class="mt-1 font-bold text-gray-900">{{ selectedRequest.status }}</p>
+              <p class="mt-2 text-xs text-gray-500">{{ selectedRequest.requested_at }}</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><p class="text-xs text-gray-500">Student</p><p class="font-semibold">{{ selectedRequest.student_name }}</p><p class="text-xs text-gray-500">{{ selectedRequest.admission_no }}</p></div>
+            <div><p class="text-xs text-gray-500">Voucher</p><p class="font-semibold">{{ selectedRequest.voucher_no }}</p><p class="text-xs text-gray-500">{{ selectedRequest.fee_type }}</p></div>
+            <div><p class="text-xs text-gray-500">Requested By</p><p class="font-semibold">{{ selectedRequest.requested_by }}</p></div>
+            <div><p class="text-xs text-gray-500">Reviewed By</p><p class="font-semibold">{{ selectedRequest.reviewed_by }}</p><p class="text-xs text-gray-500">{{ selectedRequest.reviewed_at }}</p></div>
+          </div>
+
+          <div class="rounded-lg border border-gray-200 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Reason</p>
+            <p class="mt-2 text-gray-800 whitespace-pre-wrap">{{ selectedRequest.reason }}</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="rounded-lg bg-gray-50 p-4"><p class="text-xs text-gray-500">Supporting Notes</p><p class="mt-1 font-medium whitespace-pre-wrap">{{ selectedRequest.supporting_notes }}</p></div>
+            <div class="rounded-lg bg-gray-50 p-4"><p class="text-xs text-gray-500">Reviewer Remarks</p><p class="mt-1 font-medium whitespace-pre-wrap">{{ selectedRequest.reviewer_remarks }}</p></div>
+          </div>
+        </div>
+        <template #footer>
+          <div class="flex justify-end gap-3">
+            <Button variant="secondary" @click="showViewModal = false">Close</Button>
+            <Button v-if="selectedRequest?.id" variant="primary" @click="$inertia.visit(route('fee-approval-requests.show', selectedRequest.id))">Open Full Page</Button>
+          </div>
+        </template>
+      </Modal>
+
+      <Modal :show="showDecisionModal" @close="closeDecisionModal">
+        <template #title>{{ decisionAction === 'approve' ? 'Approve Request' : 'Reject Request' }}</template>
+        <div class="space-y-3">
+          <p class="text-sm text-gray-600">
+            {{ decisionAction === 'approve' ? 'Approval may apply the linked action, such as fee waiver or fine waiver.' : 'Please add a short rejection reason.' }}
+          </p>
+          <textarea v-model="decisionRemarks" rows="3" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Remarks..." />
+        </div>
+        <template #footer>
+          <div class="flex flex-col sm:flex-row justify-end gap-3">
+            <Button variant="secondary" @click="closeDecisionModal" class="w-full sm:w-auto">Cancel</Button>
+            <Button :variant="decisionAction === 'approve' ? 'success' : 'danger'" :loading="decisionProcessing" @click="submitDecision" class="w-full sm:w-auto">
+              {{ decisionAction === 'approve' ? 'Approve' : 'Reject' }}
+            </Button>
+          </div>
+        </template>
+      </Modal>
+
+      <Modal :show="showDeleteModal" @close="showDeleteModal = false">
+        <template #title>Delete Approval Request</template>
+        <p class="text-sm text-gray-600">Only pending approval requests can be deleted. Are you sure?</p>
+        <template #footer>
+          <div class="flex justify-end gap-3">
+            <Button variant="secondary" @click="showDeleteModal = false">Cancel</Button>
+            <Button variant="danger" :loading="deleting" @click="confirmDelete">Delete</Button>
+          </div>
+        </template>
+      </Modal>
+    </div>
+  </AppLayout>
+</template>
+
 <script setup>
-import AuthenticatedLayout from '@/Components/Layout/AuthenticatedLayout.vue';
-import { Head, router } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue'
+import { router } from '@inertiajs/vue3'
+import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/vue/24/outline'
+import AppLayout from '@/Components/Layout/AppLayout.vue'
+import Button from '@/Components/Common/Button.vue'
+import Modal from '@/Components/Common/Modal.vue'
+import Input from '@/Components/Forms/Input.vue'
+import $ from 'jquery'
+import 'datatables.net'
 
-defineProps({
-    filters: Object,
-});
-
-const search = ref('');
-const status = ref('');
-const requestType = ref('');
-const loading = ref(false);
-
-const columns = [
-    { key: 'DT_RowIndex', label: 'S.No', width: '60px' },
-    { key: 'request_type', label: 'Type', width: '120px' },
-    { key: 'student_name', label: 'Student', width: '150px' },
-    { key: 'requested_amount', label: 'Amount', width: '100px' },
-    { key: 'urgency', label: 'Urgency', width: '100px' },
-    { key: 'status', label: 'Status', width: '100px' },
-    { key: 'requested_at', label: 'Requested At', width: '140px' },
-    { key: 'action', label: 'Action', width: '200px' },
-];
-
-const requests = ref([]);
-const totalRecords = ref(0);
-const currentPage = ref(1);
-const perPage = ref(10);
+const filters = reactive({ search: '', request_type: '', status: '' })
+const tableSearch = ref('')
+const perPage = ref(10)
+const showViewModal = ref(false)
+const selectedRequest = ref(null)
+const showDecisionModal = ref(false)
+const decisionAction = ref('approve')
+const decisionRequestId = ref(null)
+const decisionRemarks = ref('')
+const decisionProcessing = ref(false)
+const showDeleteModal = ref(false)
+const deleteRequestId = ref(null)
+const deleting = ref(false)
+let table = null
 
 const requestTypes = [
-    { value: 'fee_concession', label: 'Fee Concession' },
-    { value: 'fee_waiver', label: 'Fee Waiver' },
-    { value: 'fine_waiver', label: 'Fine Waiver' },
-    { value: 'installment_plan', label: 'Installment Plan' },
-    { value: 'fee_refund', label: 'Fee Refund' },
-];
+  { id: 'fee_waiver', label: 'Fee Waiver' },
+  { id: 'fine_waiver', label: 'Fine Waiver' },
+  { id: 'fee_refund', label: 'Fee Refund' },
+  { id: 'fee_concession', label: 'Fee Concession' },
+  { id: 'installment_plan', label: 'Installment Plan' },
+  { id: 'fee_edit', label: 'Voucher Edit' },
+]
 
-const fetchRequests = async () => {
-    loading.value = true;
-    try {
-        const response = await fetch(`/fee-approval-requests?draw=1&start=${(currentPage - 1) * perPage.value}&length=${perPage.value}&search[value]=${search.value}&status=${status.value}&request_type=${requestType.value}`);
-        const data = await response.json();
-        requests.value = data.data;
-        totalRecords.value = data.recordsFiltered;
-    } catch (error) {
-        console.error('Error fetching requests:', error);
-    } finally {
-        loading.value = false;
-    }
-};
+onMounted(() => {
+  table = $('#approval-requests-table').DataTable({
+    processing: true,
+    serverSide: true,
+    ajax: {
+      url: route('fee-approval-requests.index'),
+      data: (d) => {
+        d.search.value = filters.search || tableSearch.value
+        d.status = filters.status
+        d.request_type = filters.request_type
+      },
+    },
+    columns: [
+      { data: 'DT_RowIndex', orderable: false, searchable: false },
+      { data: 'request_type', name: 'request_type' },
+      { data: 'student_html', name: 'student_enrollment_id', orderable: false },
+      { data: 'voucher_html', name: 'voucher_id', orderable: false },
+      { data: 'amount_html', name: 'requested_amount' },
+      { data: 'urgency', name: 'urgency' },
+      { data: 'status', name: 'status' },
+      { data: 'requested_at', name: 'requested_at' },
+      { data: 'action', orderable: false, searchable: false, className: 'text-center' },
+    ],
+    pageLength: 10,
+    lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+    order: [[0, 'desc']],
+    searching: true,
+    info: true,
+    responsive: true,
+    dom: '<"flex items-center justify-between border-b border-gray-200"<"ml-auto"i>>rt<"flex items-center justify-between px-6 py-4 border-t border-gray-200"<"text-sm text-gray-600"i>p>',
+    language: {
+      emptyTable: '<div class="text-center py-16"><div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4"><svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/></svg></div><p class="text-sm font-semibold text-gray-700">No approval requests found</p></div>',
+      info: 'Showing _START_ to _END_ of _TOTAL_ entries',
+      infoEmpty: 'Showing 0 to 0 of 0 entries',
+      processing: '<div class="flex items-center justify-center py-8"><div class="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div></div>',
+      paginate: {
+        first: '<span class="px-1"><<</span>',
+        last: '<span class="px-1">>></span>',
+        next: '<span class="px-1">></span>',
+        previous: '<span class="px-1"><</span>',
+      },
+    },
+    drawCallback: () => {
+      $('#table-info').empty().append($('#approval-requests-table_info'))
+      $('#table-pagination').empty().append($('#approval-requests-table_paginate'))
+    },
+  })
+})
 
-const deleteRequest = (id) => {
-    if (confirm('Are you sure you want to delete this request?')) {
-        router.delete(`/fee-approval-requests/${id}`, {
-            onSuccess: () => fetchRequests(),
-        });
-    }
-};
+window.viewRequest = (request) => {
+  selectedRequest.value = request
+  showViewModal.value = true
+}
+window.editRequest = (request) => router.visit(route('fee-approval-requests.edit', request.id))
+window.approveRequest = (request) => openDecision('approve', request.id)
+window.rejectRequest = (request) => openDecision('reject', request.id)
+window.deleteRequest = (id) => {
+  deleteRequestId.value = id
+  showDeleteModal.value = true
+}
 
-const editRequest = (data) => {
-    router.get(`/fee-approval-requests/${data.id}/edit`);
-};
+const openDecision = (action, id) => {
+  decisionAction.value = action
+  decisionRequestId.value = id
+  decisionRemarks.value = action === 'approve' ? 'Approved' : ''
+  showDecisionModal.value = true
+}
+const closeDecisionModal = () => {
+  showDecisionModal.value = false
+  decisionProcessing.value = false
+}
+const submitDecision = () => {
+  decisionProcessing.value = true
+  const routeName = decisionAction.value === 'approve' ? 'fee-approval-requests.approve' : 'fee-approval-requests.reject'
+  router.post(route(routeName, decisionRequestId.value), { reviewer_remarks: decisionRemarks.value }, {
+    preserveScroll: true,
+    onSuccess: () => { closeDecisionModal(); loadData() },
+    onError: () => { decisionProcessing.value = false },
+  })
+}
+const confirmDelete = () => {
+  deleting.value = true
+  router.delete(route('fee-approval-requests.destroy', deleteRequestId.value), {
+    preserveScroll: true,
+    onSuccess: () => { deleting.value = false; showDeleteModal.value = false; loadData() },
+    onError: () => { deleting.value = false },
+  })
+}
 
-const viewRequest = (data) => {
-    router.get(`/fee-approval-requests/${data.id}`);
-};
-
-const approveRequest = (id) => {
-    const remarks = prompt('Enter approval remarks:');
-    if (remarks) {
-        router.post(`/fee-approval-requests/${id}/approve`, { reviewer_remarks: remarks });
-    }
-};
-
-const rejectRequest = (id) => {
-    const remarks = prompt('Enter rejection reason:');
-    if (remarks) {
-        router.post(`/fee-approval-requests/${id}/reject`, { reviewer_remarks: remarks });
-    }
-};
-
-const clearFilters = () => {
-    search.value = '';
-    status.value = '';
-    requestType.value = '';
-    fetchRequests();
-};
-
-fetchRequests();
+let tableSearchTimeout = null
+const tableSearchDebounced = () => { clearTimeout(tableSearchTimeout); tableSearchTimeout = setTimeout(loadData, 500) }
+let searchTimeout = null
+const searchDebounced = () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadData, 500) }
+const changePerPage = () => { if (table) table.page.len(perPage.value).draw() }
+const loadData = () => { if (table) table.ajax.reload(null, false) }
+const resetFilters = () => {
+  filters.search = ''
+  filters.request_type = ''
+  filters.status = ''
+  tableSearch.value = ''
+  loadData()
+}
 </script>
 
-<template>
-    <Head title="Fee Approval Requests" />
-
-    <AuthenticatedLayout>
-        <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <!-- Header -->
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
-                    <div class="p-6 bg-white border-b border-gray-200">
-                        <div class="flex justify-between items-center">
-                            <h2 class="text-2xl font-bold text-gray-800">Fee Approval Requests</h2>
-                            <Link :href="route('fee-approval-requests.create')"
-                                class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors">
-                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M12 4v16m8-8H4" />
-                                </svg>
-                                New Request
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Filters -->
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
-                    <div class="p-6">
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
-                                <input v-model="search" @keyup.enter="fetchRequests" type="text"
-                                    placeholder="Search requests..."
-                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Request Type</label>
-                                <select v-model="requestType" @change="fetchRequests"
-                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                    <option value="">All Types</option>
-                                    <option v-for="type in requestTypes" :key="type.value" :value="type.value">
-                                        {{ type.label }}
-                                    </option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                                <select v-model="status" @change="fetchRequests"
-                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                    <option value="">All Statuses</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="approved">Approved</option>
-                                    <option value="rejected">Rejected</option>
-                                    <option value="processed">Processed</option>
-                                </select>
-                            </div>
-                            <div class="flex items-end">
-                                <button @click="clearFilters"
-                                    class="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-lg transition-colors">
-                                    Clear Filters
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Table -->
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6">
-                        <div v-if="loading" class="text-center py-8">
-                            <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                    stroke-width="4" />
-                                <path class="opacity-75" fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                            <p class="mt-2 text-gray-600">Loading requests...</p>
-                        </div>
-
-                        <div v-else class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th v-for="column in columns" :key="column.key" :width="column.width"
-                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            {{ column.label }}
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    <tr v-for="req in requests" :key="req.id">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {{ req.DT_RowIndex }}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <span v-html="req.request_type"></span>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm font-medium text-gray-900">{{ req.student_name }}</div>
-                                            <div class="text-sm text-gray-500">{{ req.admission_no }}</div>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            Rs. {{ req.requested_amount }}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <span v-html="req.urgency"></span>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <span v-html="req.status"></span>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {{ req.requested_at }}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                            <div v-html="req.action"></div>
-                                        </td>
-                                    </tr>
-                                    <tr v-if="requests.length === 0">
-                                        <td :colspan="columns.length" class="px-6 py-8 text-center text-gray-500">
-                                            No approval requests found.
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <!-- Pagination -->
-                        <div v-if="requests.length > 0" class="mt-4 flex justify-between items-center">
-                            <div class="text-sm text-gray-700">
-                                Showing <span class="font-medium">{{ (currentPage - 1) * perPage + 1 }}</span> to
-                                <span class="font-medium">{{ Math.min(currentPage * perPage, totalRecords) }}</span> of
-                                <span class="font-medium">{{ totalRecords }}</span> results
-                            </div>
-                            <div class="flex gap-2">
-                                <button @click="currentPage--" :disabled="currentPage === 1"
-                                    class="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">
-                                    Previous
-                                </button>
-                                <button @click="currentPage++"
-                                    :disabled="currentPage * perPage >= totalRecords"
-                                    class="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">
-                                    Next
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </AuthenticatedLayout>
-</template>
+<style scoped>
+:deep(.dataTables_info) { font-size: 0.875rem; color: #4b5563; font-weight: 500; }
+:deep(.dataTables_paginate) { display: flex; justify-content: flex-end; gap: 0.25rem; flex-wrap: wrap; }
+:deep(.paginate_button) { padding: 0.5rem 0.75rem; font-size: 0.875rem; font-weight: 500; border: 1px solid #d1d5db; border-radius: 0.5rem; background: white; color: #374151; cursor: pointer; transition: all 0.2s; }
+:deep(.paginate_button:hover:not(.disabled)) { background: #f3f4f6; border-color: #9ca3af; }
+:deep(.paginate_button.current) { background: #4f46e5; color: white; border-color: #4f46e5; }
+:deep(.paginate_button.disabled) { opacity: 0.5; cursor: not-allowed; background: #f9fafb; }
+:deep(#approval-requests-table_info), :deep(#approval-requests-table_paginate) { display: none; }
+#table-info :deep(.dataTables_info), #table-pagination :deep(.dataTables_paginate) { display: block; }
+:deep(#approval-requests-table tbody td) { padding: 0.75rem 1.5rem; font-size: 0.875rem; }
+</style>

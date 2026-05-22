@@ -15,6 +15,7 @@ class FeeVoucher extends Model
 
     protected $fillable = [
         'voucher_no', 'student_enrollment_id', 'fee_type_id', 'academic_year_id',
+        'fee_structure_id', 'fee_structure_version_id',
         'month', 'year', 'generated_for',
         'original_amount', 'discount_amount', 'fine_amount',
         'net_amount', 'paid_amount', 'remaining_amount',
@@ -45,6 +46,28 @@ class FeeVoucher extends Model
     public function academicYear(): BelongsTo
     {
         return $this->belongsTo(AcademicYear::class);
+    }
+
+    public function feeStructure(): BelongsTo
+    {
+        return $this->belongsTo(FeeStructure::class)->withTrashed();
+    }
+
+    public function feeStructureVersion(): BelongsTo
+    {
+        return $this->belongsTo(FeeStructureVersion::class);
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        // 100% concession wale voucher auto-paid mark ho jayen
+        static::saving(function (FeeVoucher $voucher) {
+            if ((float) $voucher->net_amount <= 0 && $voucher->status === 'pending') {
+                $voucher->status = 'paid';
+            }
+        });
     }
 
     public function generatedBy(): BelongsTo
@@ -90,6 +113,11 @@ class FeeVoucher extends Model
     public function approvalRequests(): HasMany
     {
         return $this->hasMany(FeeApprovalRequest::class, 'voucher_id');
+    }
+
+    public function feeReminderLogs(): HasMany
+    {
+        return $this->hasMany(FeeReminderLog::class, 'voucher_id');
     }
 
     public function scopePending($query)

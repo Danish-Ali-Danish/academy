@@ -23,15 +23,11 @@
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Refund Method</label>
-                <select v-model="form.refund_method" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                  <option value="cash">Cash</option><option value="bank_transfer">Bank Transfer</option><option value="cheque">Cheque</option>
-                </select>
+                <SearchablePicker v-model="form.refund_method" :items="methodOptions" placeholder="Search refund method..." title="Refund Methods" />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <select v-model="form.status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                  <option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
-                </select>
+                <SearchablePicker v-model="form.status" :items="statusOptions" placeholder="Search status..." title="Statuses" />
               </div>
               <div class="col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Reason <span class="text-red-500">*</span></label>
@@ -58,7 +54,18 @@
 import { useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Components/Layout/AppLayout.vue'
 import Button from '@/Components/Common/Button.vue'
+import SearchablePicker from '@/Components/Finance/SearchablePicker.vue'
 const props = defineProps({ refund: { type: Object, required: true } })
 const form = useForm({ student_enrollment_id: props.refund.student_enrollment_id, payment_id: props.refund.payment_id, refund_amount: props.refund.refund_amount, refund_date: props.refund.refund_date ?? '', reason: props.refund.reason ?? '', refund_method: props.refund.refund_method ?? 'cash', bank_details: props.refund.bank_details ?? '', status: props.refund.status ?? 'pending', notes: props.refund.notes ?? '' })
+const methodOptions = [
+  { id: 'cash', label: 'Cash', subtitle: 'Cash refund to student/parent' },
+  { id: 'bank_transfer', label: 'Bank Transfer', subtitle: 'Refund through bank account' },
+  { id: 'cheque', label: 'Cheque', subtitle: 'Refund through cheque' },
+]
+const statusOptions = [
+  { id: 'pending', label: 'Pending', subtitle: 'Track request before final approval' },
+  { id: 'approved', label: 'Approved', subtitle: 'Apply refund to voucher balance' },
+  { id: 'rejected', label: 'Rejected', subtitle: 'Keep record without changing balance' },
+]
 const submit = () => { form.put(route('fee-refunds.update', props.refund.id), { preserveScroll: true }) }
 </script>

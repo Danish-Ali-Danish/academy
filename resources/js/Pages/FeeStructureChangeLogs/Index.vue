@@ -2,6 +2,11 @@
 import AuthenticatedLayout from '@/Components/Layout/AuthenticatedLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
+import Swal from 'sweetalert2';
+
+const props = defineProps({
+    pendingRequests: { type: Array, default: () => [] },
+});
 
 const search = ref('');
 const loading = ref(false);
@@ -25,7 +30,29 @@ const perPage = ref(10);
 const fetchLogs = async () => {
     loading.value = true;
     try {
-        const response = await fetch(`/fee-structure-change-logs?draw=1&start=${(currentPage - 1) * perPage.value}&length=${perPage.value}&search[value]=${search.value}`);
+        const params = new URLSearchParams({
+            draw: '1',
+            start: String((currentPage.value - 1) * perPage.value),
+            length: String(perPage.value),
+            'search[value]': search.value,
+        });
+
+        const response = await fetch(`/fee-structure-change-logs?${params.toString()}`, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server returned status ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            throw new Error('Server returned a non-JSON response.');
+        }
+
         const data = await response.json();
         logs.value = data.data;
         totalRecords.value = data.recordsFiltered;
@@ -45,6 +72,44 @@ const clearFilters = () => {
     fetchLogs();
 };
 
+const approveRequest = async (request) => {
+    const result = await Swal.fire({
+        title: `Approve ${request.request_code}?`,
+        input: 'textarea',
+        inputLabel: 'Approval remarks',
+        inputPlaceholder: 'Enter approval remarks...',
+        inputValidator: (value) => !value ? 'Remarks are required' : undefined,
+        showCancelButton: true,
+        confirmButtonText: 'Approve',
+        confirmButtonColor: '#4f46e5',
+    });
+
+    if (!result.isConfirmed) return;
+
+    router.post(route('fee-structure-change-requests.approve', request.id), {
+        remarks: result.value,
+    }, { preserveScroll: true });
+};
+
+const rejectRequest = async (request) => {
+    const result = await Swal.fire({
+        title: `Reject ${request.request_code}?`,
+        input: 'textarea',
+        inputLabel: 'Rejection remarks',
+        inputPlaceholder: 'Enter rejection reason...',
+        inputValidator: (value) => !value ? 'Remarks are required' : undefined,
+        showCancelButton: true,
+        confirmButtonText: 'Reject',
+        confirmButtonColor: '#dc2626',
+    });
+
+    if (!result.isConfirmed) return;
+
+    router.post(route('fee-structure-change-requests.reject', request.id), {
+        remarks: result.value,
+    }, { preserveScroll: true });
+};
+
 fetchLogs();
 </script>
 
@@ -59,6 +124,64 @@ fetchLogs();
                     <div class="p-6 bg-white border-b border-gray-200">
                         <h2 class="text-2xl font-bold text-gray-800">Fee Structure Change Logs</h2>
                         <p class="mt-1 text-sm text-gray-600">Audit trail of all fee structure changes</p>
+                    </div>
+                </div>
+
+                <div v-if="props.pendingRequests.length" class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
+                    <div class="p-6 border-b border-gray-200">
+                        <div class="flex items-center justify-between gap-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">Pending Approval Requests</h3>
+                                <p class="mt-1 text-sm text-gray-600">Approve or reject fee structure version changes before they become active.</p>
+                            </div>
+                            <span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm font-medium">
+                                {{ props.pendingRequests.length }} pending
+                            </span>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-indigo-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Request</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Structure</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Amount</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Impact</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Reason</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="request in props.pendingRequests" :key="request.id">
+                                    <td class="px-6 py-4 text-sm">
+                                        <div class="font-semibold text-indigo-700">{{ request.request_code }}</div>
+                                        <div class="text-xs text-gray-500">{{ request.requested_by }} · {{ request.requested_at }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-700">
+                                        <div class="font-medium text-gray-900">{{ request.fee_type }}</div>
+                                        <div>{{ request.branch_name }} · {{ request.class_name }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm">
+                                        <div class="text-gray-500">Old Rs {{ request.old_amount }}</div>
+                                        <div class="font-semibold text-green-700">New Rs {{ request.new_amount }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-700">
+                                        <div>{{ request.affected_students_count }} students</div>
+                                        <div>{{ request.unpaid_vouchers_count }} unpaid vouchers</div>
+                                        <div class="font-medium">Rs {{ request.estimated_monthly_difference }} monthly diff</div>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-700 max-w-xs">
+                                        {{ request.reason }}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm">
+                                        <div class="flex gap-2">
+                                            <button @click="approveRequest(request)" class="px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 font-medium">Approve</button>
+                                            <button @click="rejectRequest(request)" class="px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 font-medium">Reject</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -129,7 +252,13 @@ fetchLogs();
                                             {{ log.changed_at }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                            <div v-html="log.action"></div>
+                                            <button
+                                                type="button"
+                                                @click="viewLog(log)"
+                                                class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                                            >
+                                                View
+                                            </button>
                                         </td>
                                     </tr>
                                     <tr v-if="logs.length === 0">

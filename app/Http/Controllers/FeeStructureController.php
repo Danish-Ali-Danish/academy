@@ -6,7 +6,9 @@ use App\Models\FeeStructure;
 use App\Models\AcademicYear;
 use App\Models\Branch;
 use App\Models\Classes;
+use App\Models\FeeStructureChangeRequest;
 use App\Models\FeeType;
+use App\Services\FeeStructureVersioningService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -58,6 +60,8 @@ class FeeStructureController extends Controller
                 'effective_from'   => $feeStructure->effective_from?->format('Y-m-d'),
                 'effective_to'     => $feeStructure->effective_to?->format('Y-m-d'),
                 'is_active'        => $feeStructure->is_active,
+                'version_no'        => $feeStructure->version_no ?? 1,
+                'version_status'    => $feeStructure->version_status ?? 'active',
             ],
             'academicYears' => $academicYears,
             'branches'      => $branches,
@@ -193,6 +197,8 @@ class FeeStructureController extends Controller
                 ->where('branch_id', $validated['branch_id'])
                 ->where('class_id', $validated['class_id'])
                 ->where('fee_type_id', $validated['fee_type_id'])
+                ->where('is_active', true)
+                ->where('version_status', 'active')
                 ->exists();
 
             if ($exists) {
@@ -232,6 +238,7 @@ class FeeStructureController extends Controller
                 'effective_from'   => 'nullable|date',
                 'effective_to'     => 'nullable|date|after_or_equal:effective_from',
                 'is_active'        => 'boolean',
+                'change_reason'    => 'required|string|min:5',
             ], [
                 'academic_year_id.required' => 'Please select an academic year',
                 'branch_id.required' => 'Please select a branch',
@@ -241,12 +248,17 @@ class FeeStructureController extends Controller
                 'amount.numeric' => 'Amount must be a valid number',
                 'due_day.integer' => 'Due day must be a number',
                 'effective_to.after_or_equal' => 'Effective to date must be equal to or after effective from date',
+                'change_reason.required' => 'Please enter the reason for this fee structure change.',
             ]);
 
-            $feeStructure->update($validated);
+            $reason = $validated['change_reason'];
+            unset($validated['change_reason']);
 
-            return redirect()->route('fee-structures.index')
-                ->with('success', 'Fee structure updated successfully!');
+            $changeRequest = app(FeeStructureVersioningService::class)
+                ->requestChange($feeStructure, $validated, $reason, $request);
+
+            return redirect()->route('fee-structure-change-logs.index')
+                ->with('success', "Change request {$changeRequest->request_code} submitted for approval. Current fee structure is unchanged until approval.");
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()->back()
                 ->withErrors($e->errors())
@@ -267,6 +279,55 @@ class FeeStructureController extends Controller
             return back()->with('success', 'Fee structure deleted successfully!');
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to delete fee structure: ' . $e->getMessage());
+        }
+    }
+
+    public function impactPreview(Request $request, FeeStructure $feeStructure)
+    {
+        $validated = $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'branch_id'        => 'required|exists:branches,id',
+            'class_id'         => 'required|exists:classes,id',
+            'fee_type_id'      => 'required|exists:fee_types,id',
+            'amount'           => 'required|numeric|min:0',
+            'due_day'          => 'nullable|integer|min:1|max:31',
+            'effective_from'   => 'nullable|date',
+            'effective_to'     => 'nullable|date|after_or_equal:effective_from',
+            'is_active'        => 'boolean',
+        ]);
+
+        return response()->json(
+            app(FeeStructureVersioningService::class)->previewImpact($feeStructure, $validated)
+        );
+    }
+
+    public function approveChange(Request $request, FeeStructureChangeRequest $changeRequest)
+    {
+        $validated = $request->validate([
+            'remarks' => 'required|string|min:3',
+        ]);
+
+        try {
+            app(FeeStructureVersioningService::class)->approve($changeRequest, $validated['remarks'], $request);
+
+            return back()->with('success', 'Fee structure change approved and a new active version has been created.');
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function rejectChange(Request $request, FeeStructureChangeRequest $changeRequest)
+    {
+        $validated = $request->validate([
+            'remarks' => 'required|string|min:3',
+        ]);
+
+        try {
+            app(FeeStructureVersioningService::class)->reject($changeRequest, $validated['remarks'], $request);
+
+            return back()->with('success', 'Fee structure change request rejected and retained for audit.');
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
         }
     }
 

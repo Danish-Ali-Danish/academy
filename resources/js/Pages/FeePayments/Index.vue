@@ -40,10 +40,11 @@
               >
                 <option value="">All Methods</option>
                 <option value="cash">Cash</option>
-                <option value="cheque">Cheque</option>
                 <option value="bank_transfer">Bank Transfer</option>
+                <option value="jazzcash">JazzCash</option>
+                <option value="easypaisa">Easypaisa</option>
+                <option value="cheque">Cheque</option>
                 <option value="online">Online</option>
-                <option value="card">Card</option>
               </select>
             </div>
 
@@ -129,6 +130,8 @@
                   <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">Fee Type</th>
                   <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
                   <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">Total Paid</th>
+                  <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">Remaining</th>
                   <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">Method</th>
                   <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">Collected By</th>
                   <th class="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
@@ -174,10 +177,10 @@
                     <span class="text-xs font-semibold text-gray-500">#{{ mobileOffset + index + 1 }}</span>
                     <h3 class="text-base font-semibold text-gray-900">{{ payment.receipt_no }}</h3>
                   </div>
-                  <p class="text-xs text-gray-500 mt-0.5">{{ payment.student ? payment.student.full_name : 'N/A' }}</p>
+                  <p class="text-xs text-gray-500 mt-0.5">{{ studentName(payment) }}</p>
                 </div>
-                <span :class="payment.is_cancelled ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'" class="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ml-2">
-                  {{ payment.is_cancelled ? 'Cancelled' : 'Active' }}
+                <span :class="payment.is_advance ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'" class="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ml-2">
+                  {{ payment.is_advance ? 'Advance' : 'Regular' }}
                 </span>
               </div>
 
@@ -190,7 +193,7 @@
                     </svg>
                     <span>{{ formatDate(payment.payment_date) }}</span>
                   </div>
-                  <span class="text-gray-900 font-semibold">Rs. {{ Number(payment.amount_paid).toLocaleString() }}</span>
+                  <span class="text-gray-900 font-semibold">Rs. {{ Number(payment.paid_amount || 0).toLocaleString() }}</span>
                 </div>
                 
                 <div class="flex items-center text-xs sm:text-sm">
@@ -204,14 +207,14 @@
                   <svg class="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/>
                   </svg>
-                  <span class="text-gray-600">{{ payment.fee && payment.fee.fee_type ? payment.fee.fee_type.name : 'N/A' }}</span>
+                  <span class="text-gray-600">{{ feeTypeName(payment) }}</span>
                 </div>
 
                 <div class="flex items-center text-xs sm:text-sm">
                   <svg class="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                   </svg>
-                  <span class="text-gray-600">{{ payment.collected_by ? payment.collected_by.name : 'N/A' }}</span>
+                  <span class="text-gray-600">{{ payment.received_by ? payment.received_by.name : 'N/A' }}</span>
                 </div>
               </div>
 
@@ -226,15 +229,22 @@
                     View
                   </button>
                 </Link>
+                <Link :href="route('fee-payments.edit', payment.id)" class="flex-1">
+                  <button class="w-full px-3 py-2 text-xs sm:text-sm font-medium text-yellow-600 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors flex items-center justify-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                    Edit
+                  </button>
+                </Link>
                 <button 
-                  v-if="!payment.is_cancelled"
-                  @click="() => { paymentToCancel = payment.id; showCancelModal = true; }"
+                  @click="openDeleteModal(payment.id)"
                   class="flex-1 px-3 py-2 text-xs sm:text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-1"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                   </svg>
-                  Cancel
+                  Delete
                 </button>
               </div>
             </div>
@@ -275,8 +285,8 @@
 
       </div>
 
-      <!-- Cancel Payment Modal -->
-      <Modal :show="showCancelModal" @close="showCancelModal = false">
+      <!-- Delete Payment Modal -->
+      <Modal :show="showDeleteModal" @close="showDeleteModal = false">
         <template #title>
           <div class="flex items-center">
             <div class="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-100 flex items-center justify-center mr-3 sm:mr-4">
@@ -284,47 +294,33 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <span class="text-base sm:text-lg font-semibold text-gray-900">Cancel Payment</span>
+            <span class="text-base sm:text-lg font-semibold text-gray-900">Delete Payment</span>
           </div>
         </template>
         
         <div class="mt-2">
           <p class="text-xs sm:text-sm text-gray-600 mb-4">
-            Are you sure you want to cancel this payment? This will reverse the payment and update the fee balance.
+            Are you sure you want to delete this payment? This will reverse the paid amount and update the voucher balance.
           </p>
-          
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Cancellation Reason <span class="text-red-500">*</span>
-            </label>
-            <textarea
-              v-model="cancellationReason"
-              rows="3"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              placeholder="Enter reason for cancellation..."
-              required
-            ></textarea>
-          </div>
         </div>
 
         <template #footer>
           <div class="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
             <Button 
               variant="secondary" 
-              @click="showCancelModal = false"
+              @click="showDeleteModal = false"
               class="w-full sm:w-auto px-4 sm:px-6 shadow-sm hover:shadow-md transition-all text-sm"
             >
               Close
             </Button>
             <Button 
               variant="danger" 
-              @click="confirmCancel" 
-              :loading="cancelling"
-              :disabled="!cancellationReason"
+              @click="confirmDelete" 
+              :loading="deleting"
               class="w-full sm:w-auto px-4 sm:px-6 shadow-md hover:shadow-lg transition-all text-sm"
             >
-              <span v-if="!cancelling">Cancel Payment</span>
-              <span v-else>Cancelling...</span>
+              <span v-if="!deleting">Delete Payment</span>
+              <span v-else>Deleting...</span>
             </Button>
           </div>
         </template>
@@ -352,10 +348,9 @@ const props = defineProps({
   }
 })
 
-const showCancelModal = ref(false)
-const cancelling = ref(false)
-const paymentToCancel = ref(null)
-const cancellationReason = ref('')
+const showDeleteModal = ref(false)
+const deleting = ref(false)
+const paymentToDelete = ref(null)
 const tableSearch = ref('')
 const perPage = ref(10)
 const mobilePayments = ref([])
@@ -388,6 +383,14 @@ const formatPaymentMethod = (method) => {
     'card': 'Card'
   }
   return methods[method] || method
+}
+
+const studentName = (payment) => {
+  return payment.student_enrollment?.student?.student_name || 'N/A'
+}
+
+const feeTypeName = (payment) => {
+  return payment.voucher?.fee_type?.fee_name || 'N/A'
 }
 
 // Load mobile data using axios
@@ -455,17 +458,19 @@ onMounted(() => {
       }
     },
     columns: [
-      { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false },
-      { data: 'receipt_no', name: 'receipt_no' },
-      { data: 'student_name', name: 'student_name' },
-      { data: 'admission_no', name: 'admission_no' },
-      { data: 'fee_type', name: 'fee_type' },
-      { data: 'payment_date', name: 'payment_date' },
-      { data: 'amount_paid', name: 'amount_paid' },
-      { data: 'payment_method', name: 'payment_method' },
-      { data: 'collected_by', name: 'collected_by' },
-      { data: 'is_cancelled', name: 'is_cancelled', orderable: false },
-      { data: 'action', name: 'action', orderable: false, searchable: false, className: 'text-center' }
+      { data: 'DT_RowIndex',    name: 'DT_RowIndex',    orderable: false, searchable: false },
+      { data: 'receipt_no',     name: 'receipt_no' },
+      { data: 'student_name',   name: 'student_name' },
+      { data: 'admission_no',   name: 'admission_no',   orderable: false },
+      { data: 'fee_type',       name: 'fee_type',       orderable: false },
+      { data: 'payment_date',   name: 'payment_date' },
+      { data: 'amount_paid',    name: 'amount_paid',    orderable: false },
+      { data: 'total_paid',     name: 'total_paid',     orderable: false },
+      { data: 'remaining_amount', name: 'remaining_amount', orderable: false },
+      { data: 'payment_method', name: 'payment_method', orderable: false },
+      { data: 'collected_by',   name: 'collected_by',   orderable: false },
+      { data: 'is_cancelled',   name: 'is_cancelled',   orderable: false },
+      { data: 'action',         name: 'action',         orderable: false, searchable: false, className: 'text-center' }
     ],
     pageLength: 10,
     lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
@@ -476,7 +481,7 @@ onMounted(() => {
     
     dom: '<"flex items-center justify-between border-b border-gray-200"<"ml-auto"i>>rt<"flex items-center justify-between px-6 py-4 border-t border-gray-200"<"text-sm text-gray-600"i>p>',
     language: {
-      emptyTable: '<div class="text-center py-12 text-gray-500"><svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg><p class="mt-2 text-sm font-medium">No payments found</p></div>',
+      emptyTable: '<div class="text-center py-16"><div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4"><svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg></div><p class="text-sm font-semibold text-gray-700">No payments found</p><p class="text-xs text-gray-400 mt-1">Try adjusting your filters or record a new payment</p></div>',
       info: 'Showing _START_ to _END_ of _TOTAL_ entries',
       infoEmpty: 'Showing 0 to 0 of 0 entries',
       infoFiltered: '(filtered from _MAX_ total entries)',
@@ -561,30 +566,38 @@ const resetFilters = () => {
   loadData()
 }
 
-// Cancel payment
-const confirmCancel = () => {
-  if (!cancellationReason.value) return
-  
-  cancelling.value = true
-  router.post(route('fee-payments.cancel', paymentToCancel.value), {
-    cancellation_reason: cancellationReason.value,
-    cancelled_by: 1 // You should get this from auth user
-  }, {
+const openDeleteModal = (id) => {
+  paymentToDelete.value = id
+  showDeleteModal.value = true
+}
+
+const confirmDelete = () => {
+  if (!paymentToDelete.value) return
+
+  deleting.value = true
+  router.delete(route('fee-payments.destroy', paymentToDelete.value), {
     onSuccess: () => {
-      showCancelModal.value = false
-      cancelling.value = false
-      cancellationReason.value = ''
+      showDeleteModal.value = false
+      deleting.value = false
+      paymentToDelete.value = null
       loadData()
     },
     onError: () => {
-      cancelling.value = false
+      deleting.value = false
     }
   })
 }
 
-window.cancelPayment = (id) => {
-  paymentToCancel.value = id
-  showCancelModal.value = true
+window.viewPayment = (payment) => {
+  router.visit(route('fee-payments.show', payment.id))
+}
+
+window.editPayment = (payment) => {
+  router.visit(route('fee-payments.edit', payment.id))
+}
+
+window.deletePayment = (id) => {
+  openDeleteModal(id)
 }
 </script>
 

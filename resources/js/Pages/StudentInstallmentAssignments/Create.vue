@@ -8,7 +8,7 @@
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div>
               <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Create Installment Assignment</h1>
-              <p class="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-600">Assign an installment plan to an enrolled student</p>
+              <p class="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-600">Assign an installment plan and generate its kist schedule here</p>
             </div>
             <Button @click="$inertia.visit(route('student-installment-assignments.index'))" variant="secondary" class="w-full sm:w-auto shadow-sm hover:shadow-md transition-all text-sm">
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
@@ -99,8 +99,9 @@
               <!-- Total Amount (auto-filled or manual) -->
               <div>
                 <label for="total_amount" class="block text-sm font-medium text-gray-700 mb-2">Total Amount <span class="text-red-500">*</span></label>
-                <input id="total_amount" v-model.number="totalAmount" @input="recalculateSchedule" type="number" step="0.01" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" :class="{ 'border-red-500': form.errors.total_amount }" placeholder="0.00" required />
+                <input id="total_amount" v-model.number="totalAmount" @input="recalculateSchedule" type="number" step="0.01" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" :class="{ 'border-red-500': form.errors.total_amount }" placeholder="0.00" required />
                 <p v-if="form.errors.total_amount" class="mt-1 text-sm text-red-600">{{ form.errors.total_amount }}</p>
+                <p v-if="feeInfo.baseAmount > 0 && Number(totalAmount || 0) === 0" class="mt-1 text-xs text-green-600">Full concession applied. No kist schedule is required.</p>
               </div>
 
               <!-- Status -->
@@ -111,6 +112,62 @@
                   <option value="completed">Completed</option>
                   <option value="defaulted">Defaulted</option>
                 </select>
+              </div>
+
+              <!-- Schedule Setup -->
+              <div class="md:col-span-2">
+                <div class="rounded-xl border border-indigo-100 bg-indigo-50/50 overflow-hidden">
+                  <div class="px-4 sm:px-5 py-3 border-b border-indigo-100 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <h3 class="text-sm font-bold text-indigo-950 uppercase tracking-wider">Kist Schedule Setup</h3>
+                      <p class="text-xs text-gray-600 mt-1">Student, enrollment aur installment plan select karte hi schedule yahan auto ban jaye ga.</p>
+                    </div>
+                    <span class="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                      {{ selectedPlan ? `${selectedPlan.total_installments} kists` : 'Plan pending' }}
+                    </span>
+                  </div>
+
+                  <div class="p-4 sm:p-5 grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                      <label for="first_due_date" class="block text-sm font-medium text-gray-700 mb-2">First Kist Date</label>
+                      <input
+                        id="first_due_date"
+                        v-model="scheduleSettings.firstDueDate"
+                        @change="recalculateSchedule"
+                        type="date"
+                        :disabled="!selectedPlan"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Schedule Gap</label>
+                      <select
+                        v-model="scheduleSettings.frequency"
+                        @change="recalculateSchedule"
+                        :disabled="!selectedPlan"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      >
+                        <option value="monthly">Monthly</option>
+                      </select>
+                    </div>
+
+                    <div class="rounded-lg bg-white border border-indigo-100 px-4 py-3">
+                      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Kist Count</span>
+                      <p class="mt-1 text-lg font-bold text-gray-900">{{ selectedPlan?.total_installments || 0 }}</p>
+                    </div>
+
+                    <div class="rounded-lg bg-white border border-indigo-100 px-4 py-3">
+                      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Per Kist</span>
+                      <p class="mt-1 text-lg font-bold text-indigo-700">Rs {{ estimatedPerKist }}</p>
+                    </div>
+                  </div>
+
+                  <div v-if="schedule.length === 0" class="mx-4 sm:mx-5 mb-4 sm:mb-5 rounded-lg border border-dashed border-indigo-200 bg-white px-4 py-5 text-center">
+                    <p class="text-sm font-medium text-gray-700">Schedule abhi generate nahi hua.</p>
+                    <p class="text-xs text-gray-500 mt-1">Student search, enrollment, plan aur total amount complete karein. Phir kist dates aur amounts neeche preview mein aa jayenge.</p>
+                  </div>
+                </div>
               </div>
 
               <!-- Notes -->
@@ -165,10 +222,10 @@
             <!-- Submit Buttons -->
             <div class="mt-6 flex flex-col sm:flex-row items-center justify-end gap-3 sm:gap-4">
               <Button type="button" variant="secondary" @click="$inertia.visit(route('student-installment-assignments.index'))" class="w-full sm:w-auto shadow-sm hover:shadow-md transition-all text-sm">Cancel</Button>
-              <Button type="submit" variant="primary" :loading="form.processing" :disabled="schedule.length === 0" class="w-full sm:w-auto shadow-lg hover:shadow-xl transition-all text-sm disabled:opacity-50">
+              <Button type="submit" variant="primary" :loading="form.processing" :disabled="requiresSchedule && schedule.length === 0" class="w-full sm:w-auto shadow-lg hover:shadow-xl transition-all text-sm disabled:opacity-50">
                 <span v-if="!form.processing">
                   <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                  Create Assignment ({{ schedule.length }} Kists)
+                  Create Assignment ({{ Number(totalAmount || 0) > 0 ? schedule.length : 0 }} Kists)
                 </span>
                 <span v-else>Creating...</span>
               </Button>
@@ -199,6 +256,10 @@ const enrollmentOptions = ref([])
 const loadingEnrollments = ref(false)
 const totalAmount = ref('')
 const schedule = ref([])
+const scheduleSettings = reactive({
+  firstDueDate: '',
+  frequency: 'monthly',
+})
 
 const feeInfo = reactive({
   loading: false,
@@ -229,6 +290,20 @@ const scheduleTotal = computed(() => {
   return schedule.value.reduce((sum, k) => sum + Number(k.kist_amount || 0), 0)
 })
 
+const estimatedPerKist = computed(() => {
+  const plan = selectedPlan.value
+  const amount = Number(totalAmount.value || 0)
+
+  if (!plan || !amount) return '0.00'
+
+  return (amount / plan.total_installments).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+})
+
+const requiresSchedule = computed(() => Number(totalAmount.value || 0) > 0)
+
 // Student selected
 const onStudentSelected = async () => {
   form.student_enrollment_id = ''
@@ -255,17 +330,20 @@ const onStudentCleared = () => {
   enrollmentOptions.value = []
   totalAmount.value = ''
   schedule.value = []
+  scheduleSettings.firstDueDate = ''
   resetFeeInfo()
 }
 
 const onEnrollmentChange = () => {
   resetFeeInfo()
   schedule.value = []
+  scheduleSettings.firstDueDate = ''
   fetchFeeAmount()
 }
 
 const onPlanChange = () => {
   schedule.value = []
+  ensureFirstDueDate()
   fetchFeeAmount()
 }
 
@@ -300,9 +378,8 @@ const fetchFeeAmount = async () => {
     feeInfo.dueDay = res.data.due_day || 10
     feeInfo.message = res.data.message
 
-    if (feeInfo.amount > 0) {
-      totalAmount.value = feeInfo.amount
-    }
+    totalAmount.value = feeInfo.amount
+    ensureFirstDueDate()
     recalculateSchedule()
   } catch (e) {
     console.error('Error fetching fee:', e)
@@ -312,29 +389,51 @@ const fetchFeeAmount = async () => {
   }
 }
 
+const formatDateInput = (date) => {
+  return date.toISOString().split('T')[0]
+}
+
+const ensureFirstDueDate = () => {
+  if (!selectedPlan.value || scheduleSettings.firstDueDate) return
+
+  const today = new Date()
+  const dueDay = feeInfo.dueDay || 10
+  const firstDueDate = new Date(today.getFullYear(), today.getMonth(), dueDay)
+
+  if (firstDueDate < today) {
+    firstDueDate.setMonth(firstDueDate.getMonth() + 1)
+  }
+
+  scheduleSettings.firstDueDate = formatDateInput(firstDueDate)
+}
+
 // Auto-divide into kists
 const recalculateSchedule = () => {
   const plan = selectedPlan.value
-  if (!plan || !totalAmount.value || totalAmount.value <= 0) {
+  if (!plan || Number(totalAmount.value || 0) <= 0) {
     schedule.value = []
     return
   }
 
+  ensureFirstDueDate()
+
   const n = plan.total_installments
   const perKist = Math.floor((totalAmount.value / n) * 100) / 100
   const remainder = Math.round((totalAmount.value - perKist * n) * 100) / 100
-  const today = new Date()
-  const dueDay = feeInfo.dueDay || 10
+  const firstDueDate = scheduleSettings.firstDueDate
+    ? new Date(`${scheduleSettings.firstDueDate}T00:00:00`)
+    : new Date()
 
   const kists = []
   for (let i = 0; i < n; i++) {
-    const dueDate = new Date(today.getFullYear(), today.getMonth() + i, dueDay)
+    const dueDate = new Date(firstDueDate)
+    dueDate.setMonth(firstDueDate.getMonth() + i)
     const amount = i === n - 1 ? perKist + remainder : perKist
 
     kists.push({
       kist_number: i + 1,
       kist_amount: Math.round(amount * 100) / 100,
-      due_date: dueDate.toISOString().split('T')[0],
+      due_date: formatDateInput(dueDate),
     })
   }
   schedule.value = kists

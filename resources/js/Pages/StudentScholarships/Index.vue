@@ -187,6 +187,16 @@
               <!-- Actions -->
               <div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                 <button
+                  @click="showScholarshipDetails(scholarship.id)"
+                  class="flex-1 px-3 py-2 text-xs sm:text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                  View
+                </button>
+                <button
                   @click="$inertia.visit(route('student-scholarships.edit', scholarship.id))"
                   class="flex-1 px-3 py-2 text-xs sm:text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
                 >
@@ -243,6 +253,207 @@
 
       </div>
 
+      <!-- Show Details Modal -->
+      <Modal :show="showModal" @close="showModal = false">
+        <template #title>
+          <div class="flex items-center">
+            <div class="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-100 flex items-center justify-center mr-3 sm:mr-4">
+              <svg class="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+            </div>
+            <span class="text-base sm:text-lg font-semibold text-gray-900">Scholarship Assignment Details</span>
+          </div>
+        </template>
+
+        <div v-if="loadingDetails" class="flex items-center justify-center py-12">
+          <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+        </div>
+
+        <div v-else-if="scholarshipDetails" class="space-y-6">
+          <!-- Student Information -->
+          <div class="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+              </svg>
+              Student Information
+            </h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span class="text-gray-500">Name:</span>
+                <p class="font-medium text-gray-900">{{ scholarshipDetails.student.name }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Father's Name:</span>
+                <p class="font-medium text-gray-900">{{ scholarshipDetails.student.father_name }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Roll No:</span>
+                <p class="font-medium text-gray-900">{{ scholarshipDetails.student.roll_no }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Admission No:</span>
+                <p class="font-medium text-gray-900">{{ scholarshipDetails.student.admission_no }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Class Information -->
+          <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+              </svg>
+              Class Information
+            </h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span class="text-gray-500">Class:</span>
+                <p class="font-medium text-gray-900">{{ scholarshipDetails.class_info.class_name }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Section:</span>
+                <p class="font-medium text-gray-900">{{ scholarshipDetails.class_info.section_name }}</p>
+              </div>
+              <div class="col-span-2">
+                <span class="text-gray-500">Enrollment Year:</span>
+                <p class="font-medium text-gray-900">{{ scholarshipDetails.class_info.academic_year }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Scholarship Details -->
+          <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 7l9-5-9-5-9 5 9 5z"/>
+              </svg>
+              Scholarship Details
+            </h3>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between gap-4">
+                <span class="text-gray-500">Scholarship:</span>
+                <span class="font-medium text-gray-900 text-right">{{ scholarshipDetails.scholarship.name }}</span>
+              </div>
+              <div class="flex justify-between gap-4">
+                <span class="text-gray-500">Discount:</span>
+                <span class="font-medium text-gray-900 text-right">{{ formatDiscount(scholarshipDetails.scholarship) }}</span>
+              </div>
+              <div class="flex justify-between gap-4">
+                <span class="text-gray-500">Applies To:</span>
+                <span class="font-medium text-gray-900 text-right">{{ scholarshipDetails.scholarship.applies_to }}</span>
+              </div>
+              <div class="flex justify-between gap-4">
+                <span class="text-gray-500">Fee Type:</span>
+                <span class="font-medium text-gray-900 text-right">{{ scholarshipDetails.scholarship.fee_type }}</span>
+              </div>
+              <div class="flex justify-between gap-4">
+                <span class="text-gray-500">Renewable:</span>
+                <span class="font-medium text-gray-900 text-right">{{ scholarshipDetails.scholarship.is_renewable ? 'Yes' : 'No' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Award Summary -->
+          <div class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              Award Summary
+            </h3>
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div class="bg-white rounded-lg p-3">
+                <p class="text-xs text-gray-500 mb-1">Academic Year</p>
+                <p class="text-sm font-bold text-gray-900">{{ scholarshipDetails.award.academic_year }}</p>
+              </div>
+              <div class="bg-green-100 rounded-lg p-3">
+                <p class="text-xs text-green-600 mb-1">Awarded On</p>
+                <p class="text-sm font-bold text-green-700">{{ scholarshipDetails.award.awarded_on }}</p>
+              </div>
+              <div class="bg-blue-100 rounded-lg p-3">
+                <p class="text-xs text-blue-600 mb-1">Valid To</p>
+                <p class="text-sm font-bold text-blue-700">{{ scholarshipDetails.award.valid_to }}</p>
+              </div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-amber-200 space-y-2">
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Valid From:</span>
+                <span class="font-medium text-gray-900">{{ scholarshipDetails.award.valid_from }}</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Status:</span>
+                <span :class="getStatusClass(scholarshipDetails.award.status)" class="px-2 py-1 text-xs font-medium rounded-full capitalize">
+                  {{ scholarshipDetails.award.status }}
+                </span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Awarded By:</span>
+                <span class="font-medium text-gray-900">{{ scholarshipDetails.award.awarded_by }}</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Created At:</span>
+                <span class="font-medium text-gray-900">{{ scholarshipDetails.award.created_at }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Performance -->
+          <div class="bg-gradient-to-r from-cyan-50 to-sky-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>
+              Performance
+            </h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span class="text-gray-500">Position Achieved:</span>
+                <p class="font-medium text-gray-900">{{ scholarshipDetails.award.position_achieved }}</p>
+              </div>
+              <div>
+                <span class="text-gray-500">Marks Percentage:</span>
+                <p class="font-medium text-gray-900">{{ scholarshipDetails.award.marks_percentage ? `${scholarshipDetails.award.marks_percentage}%` : 'N/A' }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Scholarship Notes -->
+          <div v-if="scholarshipDetails.scholarship.criteria || scholarshipDetails.scholarship.description" class="bg-gray-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              Criteria / Description
+            </h3>
+            <p v-if="scholarshipDetails.scholarship.criteria" class="text-sm text-gray-700">{{ scholarshipDetails.scholarship.criteria }}</p>
+            <p v-if="scholarshipDetails.scholarship.description" class="text-sm text-gray-700 mt-2">{{ scholarshipDetails.scholarship.description }}</p>
+          </div>
+
+          <!-- Notes -->
+          <div v-if="scholarshipDetails.award.notes || scholarshipDetails.award.revoke_reason" class="bg-gray-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+              </svg>
+              Notes
+            </h3>
+            <p v-if="scholarshipDetails.award.notes" class="text-sm text-gray-700">{{ scholarshipDetails.award.notes }}</p>
+            <p v-if="scholarshipDetails.award.revoke_reason" class="text-sm text-red-700 mt-2">Revoke Reason: {{ scholarshipDetails.award.revoke_reason }}</p>
+          </div>
+        </div>
+
+        <template #footer>
+          <div class="flex justify-end">
+            <Button variant="secondary" @click="showModal = false" class="shadow-sm hover:shadow-md transition-all text-sm">
+              Close
+            </Button>
+          </div>
+        </template>
+      </Modal>
+
       <!-- Delete Confirmation Modal -->
       <Modal :show="showDeleteModal" @close="showDeleteModal = false">
         <template #title>
@@ -295,8 +506,10 @@ import Modal from '@/Components/Common/Modal.vue'
 import $ from 'jquery'
 import 'datatables.net'
 import axios from 'axios'
+import Swal from 'sweetalert2'
 
 // State
+const showModal = ref(false)
 const showDeleteModal = ref(false)
 const deleting = ref(false)
 const scholarshipToDelete = ref(null)
@@ -308,6 +521,8 @@ const mobileCurrentPage = ref(1)
 const mobileTotalPages = ref(1)
 const mobileTotal = ref(0)
 const mobileOffset = ref(0)
+const scholarshipDetails = ref(null)
+const loadingDetails = ref(false)
 let table = null
 
 const filters = reactive({
@@ -326,6 +541,45 @@ const formatDate = (dateString) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+const formatAmount = (value) => {
+  if (value === null || value === undefined) return '0'
+  return Number(value).toLocaleString()
+}
+
+const formatDiscount = (scholarship) => {
+  if (!scholarship || scholarship.discount_value === null || scholarship.discount_value === undefined) return 'N/A'
+  if (scholarship.discount_type === 'percentage') return `${formatAmount(scholarship.discount_value)}%`
+  if (scholarship.discount_type === 'fixed') return `Rs ${formatAmount(scholarship.discount_value)}`
+  return `${scholarship.discount_type}: ${formatAmount(scholarship.discount_value)}`
+}
+
+// Show scholarship details
+const showScholarshipDetails = async (id) => {
+  loadingDetails.value = true
+  scholarshipDetails.value = null
+  showModal.value = true
+
+  try {
+    const response = await axios.get(route('student-scholarships.show', id), {
+      headers: { 'Accept': 'application/json' }
+    })
+    scholarshipDetails.value = response.data
+  } catch (error) {
+    console.error('Error loading scholarship details:', error)
+    Swal.fire({
+      icon: 'error',
+      title: 'Error!',
+      text: 'Failed to load scholarship details',
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000
+    })
+  } finally {
+    loadingDetails.value = false
+  }
 }
 
 // Load mobile data
@@ -419,6 +673,9 @@ onMounted(() => {
 })
 
 // Global handlers for DataTables action buttons
+window.showScholarship = (scholarship) => {
+  showScholarshipDetails(scholarship.id)
+}
 window.editScholarship = (scholarship) => {
   router.visit(route('student-scholarships.edit', scholarship.id))
 }

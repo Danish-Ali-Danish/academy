@@ -140,18 +140,53 @@ class AcademyPaymentAccountController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    private function validationRules(string $method): array
     {
-        $validated = $request->validate([
+        $base = [
+            'payment_method' => 'required|in:cash,bank_transfer,jazzcash,easypaisa',
+            'instructions'   => 'nullable|string',
+            'is_active'      => 'boolean',
+        ];
+
+        if ($method === 'cash') {
+            return array_merge($base, [
+                'account_title'  => 'nullable|string|max:255',
+                'account_number' => 'nullable|string|max:100',
+                'bank_name'      => 'nullable|string|max:255',
+                'branch_name'    => 'nullable|string|max:255',
+                'iban'           => 'nullable|string|max:100',
+            ]);
+        }
+
+        if ($method === 'bank_transfer') {
+            return array_merge($base, [
+                'account_title'  => 'required|string|max:255',
+                'account_number' => 'required|string|max:100',
+                'bank_name'      => 'required|string|max:255',
+                'branch_name'    => 'nullable|string|max:255',
+                'iban'           => 'nullable|string|max:100',
+            ]);
+        }
+
+        // jazzcash / easypaisa
+        return array_merge($base, [
             'account_title'  => 'required|string|max:255',
-            'payment_method' => 'required|string|max:100',
-            'account_number' => 'required|string|max:100',
+            'account_number' => 'required|string|max:20',
             'bank_name'      => 'nullable|string|max:255',
             'branch_name'    => 'nullable|string|max:255',
             'iban'           => 'nullable|string|max:100',
-            'instructions'   => 'nullable|string',
-            'is_active'      => 'boolean',
         ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate($this->validationRules($request->input('payment_method', '')));
+
+        // Cash ke liye default title set kar do agar empty ho
+        if ($validated['payment_method'] === 'cash' && empty($validated['account_title'])) {
+            $validated['account_title'] = 'Cash';
+            $validated['account_number'] = 'CASH';
+        }
 
         AcademyPaymentAccount::create($validated);
 
@@ -161,16 +196,12 @@ class AcademyPaymentAccountController extends Controller
 
     public function update(Request $request, AcademyPaymentAccount $academyPaymentAccount)
     {
-        $validated = $request->validate([
-            'account_title'  => 'required|string|max:255',
-            'payment_method' => 'required|string|max:100',
-            'account_number' => 'required|string|max:100',
-            'bank_name'      => 'nullable|string|max:255',
-            'branch_name'    => 'nullable|string|max:255',
-            'iban'           => 'nullable|string|max:100',
-            'instructions'   => 'nullable|string',
-            'is_active'      => 'boolean',
-        ]);
+        $validated = $request->validate($this->validationRules($request->input('payment_method', '')));
+
+        if ($validated['payment_method'] === 'cash' && empty($validated['account_title'])) {
+            $validated['account_title'] = 'Cash';
+            $validated['account_number'] = 'CASH';
+        }
 
         $academyPaymentAccount->update($validated);
 

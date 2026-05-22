@@ -12,7 +12,7 @@ class FeeAdvanceAdjustment extends Model
     use HasFactory;
 
     protected $fillable = [
-        'student_enrollment_id', 'from_payment_id', 'to_voucher_id',
+        'student_enrollment_id', 'from_payment_id', 'to_voucher_id', 'applied_payment_id',
         'adjusted_amount', 'adjusted_by', 'adjusted_at', 'notes',
     ];
 
@@ -34,6 +34,11 @@ class FeeAdvanceAdjustment extends Model
     public function toVoucher(): BelongsTo
     {
         return $this->belongsTo(FeeVoucher::class, 'to_voucher_id');
+    }
+
+    public function appliedPayment(): BelongsTo
+    {
+        return $this->belongsTo(FeePayment::class, 'applied_payment_id');
     }
 
     public function adjustedBy(): BelongsTo

@@ -26,21 +26,35 @@
   >
     <aside
       v-show="open || !isMobile"
-      class="fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-gradient-to-b from-indigo-600 to-indigo-800 text-white shadow-2xl lg:translate-x-0"
+      :class="[
+        collapsed ? 'w-20 sidebar-collapsed' : 'w-72',
+        'fixed inset-y-0 left-0 z-50 flex flex-col bg-gradient-to-b from-indigo-700 to-indigo-900 text-white shadow-2xl lg:translate-x-0 transition-all duration-300 ease-in-out border-r border-indigo-800/50'
+      ]"
     >
+
       <!-- Logo -->
-      <div class="flex h-16 items-center justify-center border-b border-indigo-500/30 px-6">
-        <h1 class="text-2xl font-bold tracking-tight">Academy MS</h1>
+      <div class="flex h-16 items-center justify-center border-b border-indigo-500/30 px-4">
+        <div class="flex items-center space-x-3 w-full" :class="collapsed ? 'justify-center' : ''">
+          <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/>
+              <path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <h1 class="text-xl font-bold tracking-tight sidebar-text truncate">Academy MS</h1>
+        </div>
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+      <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-2">
+      
         
         <!-- Dashboard -->
         <Link
           :href="route('dashboard')"
           :class="navLinkClass(route().current('dashboard'))"
         >
+
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
           </svg>
@@ -50,6 +64,8 @@
         <!-- ========================================== -->
         <!-- MANAGEMENT (Infrastructure) -->
         <!-- ========================================== -->
+
+        
         <div class="pt-4">
           <p class="px-3 text-xs font-semibold text-indigo-200 uppercase tracking-wider mb-2">
             Management
@@ -171,11 +187,7 @@
           </Link>
           <Link :href="route('student-installment-assignments.index')" :class="navLinkClass(route().current('student-installment-assignments.*'))">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-            <span>Installment Assignments</span>
-          </Link>
-          <Link :href="route('installment-schedules.index')" :class="navLinkClass(route().current('installment-schedules.*'))">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            <span>Installment Schedule</span>
+            <span>Installments & Schedule</span>
           </Link>
         </div>
 
@@ -190,13 +202,13 @@
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg>
             <span>Fee Vouchers</span>
           </Link>
-          <Link :href="route('fee-voucher-fines.index')" :class="navLinkClass(route().current('fee-voucher-fines.*'))">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>Voucher Fines</span>
-          </Link>
           <Link :href="route('voucher-discount-breakdowns.index')" :class="navLinkClass(route().current('voucher-discount-breakdowns.*'))">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             <span>Discount Breakdowns</span>
+          </Link>
+          <Link :href="route('fee-voucher-fines.index')" :class="navLinkClass(route().current('fee-voucher-fines.*'))">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Voucher Fines</span>
           </Link>
         </div>
 
@@ -240,6 +252,10 @@
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
             <span>Advance Adjustments</span>
           </Link>
+          <Link :href="route('fee-approval-requests.index')" :class="navLinkClass(route().current('fee-approval-requests.*'))">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            <span>Approval Requests</span>
+          </Link>
           <Link :href="route('fee-voucher-edit-history.index')" :class="navLinkClass(route().current('fee-voucher-edit-history.*'))">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <span>Voucher Edit History</span>
@@ -253,9 +269,30 @@
           <p class="px-3 text-xs font-semibold text-indigo-200 uppercase tracking-wider mb-2">
             ⑥ Reports
           </p>
+          <Link :href="route('fee-collection-summaries.dashboard')" :class="navLinkClass(route().current('fee-collection-summaries.dashboard'))">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 13v6M12 7v12M17 10v9"/></svg>
+            <span>Collection Dashboard</span>
+          </Link>
+
           <Link :href="route('fee-collection-summaries.index')" :class="navLinkClass(route().current('fee-collection-summaries.*'))">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 00-2-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             <span>Collection Summary</span>
+          </Link>
+          <Link :href="route('fee-reminders.index')" :class="navLinkClass(route().current('fee-reminders.*'))">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+            <span>Fee Reminders</span>
+          </Link>
+          <Link :href="route('student-ledgers.index')" :class="navLinkClass(route().current('student-ledgers.*'))">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14h6m-6 4h6M7 4h10a2 2 0 012 2v14l-4-2-3 2-3-2-4 2V6a2 2 0 012-2z"/></svg>
+            <span>Student Ledger</span>
+          </Link>
+          <Link :href="route('defaulters.index')" :class="navLinkClass(route().current('defaulters.*'))">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M4.93 19h14.14a2 2 0 001.73-3L13.73 4a2 2 0 00-3.46 0L3.2 16a2 2 0 001.73 3z"/></svg>
+            <span>Defaulters</span>
+          </Link>
+          <Link :href="route('fee-structure-change-logs.index')" :class="navLinkClass(route().current('fee-structure-change-logs.*'))">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+            <span>Structure Change Logs</span>
           </Link>
         </div>
 
@@ -337,7 +374,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 
 defineProps({
-  open: Boolean
+  open: Boolean,
+  collapsed: Boolean
 })
 
 defineEmits(['close'])
@@ -365,3 +403,41 @@ onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
 })
 </script>
+
+<style scoped>
+/* Sidebar Collapsed Styles */
+.sidebar-collapsed .sidebar-text,
+.sidebar-collapsed span,
+.sidebar-collapsed p {
+  display: none !important;
+  opacity: 0;
+}
+.sidebar-collapsed svg {
+  margin: 0 auto;
+}
+.sidebar-collapsed a {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.sidebar-collapsed .px-3 {
+  padding-left: 0;
+  padding-right: 0;
+  text-align: center;
+}
+
+/* Custom slim scrollbar for nav */
+nav::-webkit-scrollbar {
+  width: 4px;
+}
+nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+</style>

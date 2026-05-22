@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         // Workaround for modifying enum columns in older Laravel / Doctrine DBAL
         DB::statement("ALTER TABLE fee_fine_rules MODIFY COLUMN fine_type VARCHAR(50) DEFAULT 'fixed'");
     }
@@ -21,6 +25,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("ALTER TABLE fee_fine_rules MODIFY COLUMN fine_type ENUM('fixed', 'percentage') DEFAULT 'fixed'");
     }
 };

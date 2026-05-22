@@ -110,6 +110,16 @@ class StudentEnrollment extends Model
         return $this->hasMany(StudentScholarship::class);
     }
 
+    public function feeReminderLogs(): HasMany
+    {
+        return $this->hasMany(FeeReminderLog::class, 'student_enrollment_id');
+    }
+
+    public function financeBlock(): HasOne
+    {
+        return $this->hasOne(StudentFinanceBlock::class, 'student_enrollment_id');
+    }
+
     // ─── Scopes ──────────────────────────────────────────────────────────────────
 
     public function scopeActive($query)

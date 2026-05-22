@@ -22,13 +22,15 @@
           <form @submit.prevent="submit">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
 
-              <!-- Student (cascading) -->
-              <div>
-                <label for="student_id" class="block text-sm font-medium text-gray-700 mb-2">Student <span class="text-red-500">*</span></label>
-                <select id="student_id" v-model="selectedStudentId" @change="onStudentChange" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required>
-                  <option value="">Select Student</option>
-                  <option v-for="s in students" :key="s.id" :value="s.id">{{ s.student_name }} (Roll: {{ s.roll_no || 'N/A' }}, Adm: {{ s.admission_no || 'N/A' }})</option>
-                </select>
+              <!-- Student Search -->
+              <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Student Search <span class="text-red-500">*</span></label>
+                <StudentRollSearch
+                  v-model="selectedStudentId"
+                  @student-selected="onStudentChange"
+                  @cleared="onStudentChange"
+                  :error="form.errors.student_enrollment_id"
+                />
               </div>
 
               <!-- Enrollment (loaded after student) -->
@@ -137,10 +139,10 @@ import { ref } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Components/Layout/AppLayout.vue'
 import Button from '@/Components/Common/Button.vue'
+import StudentRollSearch from '@/Components/Common/StudentRollSearch.vue'
 import axios from 'axios'
 
-const props = defineProps({
-  students: Array,
+defineProps({
   scholarships: Array,
   academicYears: Array,
 })
@@ -173,6 +175,9 @@ const onStudentChange = async () => {
   try {
     const res = await axios.get(route('student-scholarships.enrollments-by-student', selectedStudentId.value))
     enrollmentOptions.value = res.data
+    if (enrollmentOptions.value.length > 0) {
+      form.student_enrollment_id = enrollmentOptions.value[0].id
+    }
   } catch (e) { console.error('Error loading enrollments:', e) }
   finally { loadingEnrollments.value = false }
 }

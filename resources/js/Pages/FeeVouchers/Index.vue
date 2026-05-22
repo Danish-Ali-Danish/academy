@@ -6,12 +6,18 @@
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div>
               <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Fee Vouchers Management</h1>
-              <p class="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-600">Manage all fee vouchers</p>
+              <p class="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-600">Create one voucher for a student, or generate monthly vouchers for a full class/branch.</p>
             </div>
-            <Button @click="$inertia.visit(route('fee-vouchers.create'))" variant="primary" class="w-full sm:w-auto shadow-lg hover:shadow-xl transition-all text-sm">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-              Create New Voucher
-            </Button>
+            <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button @click="openGenerateModal" variant="primary" class="w-full sm:w-auto shadow-lg hover:shadow-xl transition-all text-sm">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h8M9 17H7a2 2 0 01-2-2V7a2 2 0 012-2h8a2 2 0 012 2v2m-8 8h8a2 2 0 002-2v-4"/></svg>
+                Bulk Generate
+              </Button>
+              <Button @click="$inertia.visit(route('fee-vouchers.create'))" variant="secondary" class="w-full sm:w-auto shadow-sm hover:shadow-md transition-all text-sm">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Single Student
+              </Button>
+            </div>
           </div>
         </div>
         <div class="bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
@@ -109,6 +115,134 @@
           </div>
         </div>
       </div>
+      <Modal :show="showGenerateModal" @close="closeGenerateModal" max-width="7xl">
+        <template #title>
+          <div class="flex items-center">
+            <div class="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-100 flex items-center justify-center mr-3 sm:mr-4">
+              <svg class="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg>
+            </div>
+            <span class="text-base sm:text-lg font-semibold text-gray-900">Generate Monthly Vouchers</span>
+          </div>
+        </template>
+
+        <div class="mt-4 space-y-5">
+          <div class="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+            Select a month and academic year, then optionally choose branch, class, or fee type. Leave branch/class empty to generate for everyone; choose a class to generate vouchers class-wise.
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Academic Year</label>
+              <select v-model="generatorForm.academic_year_id" class="w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="">Select Year</option>
+                <option v-for="year in generatorOptions.academicYears" :key="year.id" :value="year.id">{{ year.year_name }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Month</label>
+              <select v-model="generatorForm.month" class="w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option v-for="month in months" :key="month.value" :value="month.value">{{ month.label }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Year</label>
+              <input v-model.number="generatorForm.year" type="number" min="2000" max="2100" class="w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Branch</label>
+              <select v-model="generatorForm.branch_id" class="w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="">All Branches</option>
+                <option v-for="branch in generatorOptions.branches" :key="branch.id" :value="branch.id">{{ branch.branch_name }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Class</label>
+              <select v-model="generatorForm.class_id" class="w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="">All Classes</option>
+                <option v-for="classItem in generatorOptions.classes" :key="classItem.id" :value="classItem.id">{{ classItem.class_name }}</option>
+              </select>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Fee Type</label>
+              <select v-model="generatorForm.fee_type_id" class="w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="">All Fee Types</option>
+                <option v-for="feeType in generatorOptions.feeTypes" :key="feeType.id" :value="feeType.id">{{ feeType.fee_name }}</option>
+              </select>
+            </div>
+            <div class="md:col-span-3 flex items-end gap-2">
+              <Button type="button" variant="primary" :loading="previewLoading" @click="previewVouchers" class="w-full sm:w-auto">Preview Vouchers</Button>
+              <Button type="button" variant="secondary" @click="resetGenerator" class="w-full sm:w-auto">Reset</Button>
+            </div>
+          </div>
+
+          <div v-if="generatorError" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ generatorError }}
+          </div>
+          <div v-if="generatorNotice" class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            {{ generatorNotice }}
+          </div>
+
+          <div v-if="previewSummary" class="grid grid-cols-2 lg:grid-cols-6 gap-3">
+            <div class="rounded-lg bg-gray-50 border border-gray-200 p-3"><p class="text-xs text-gray-500">Total Rows</p><p class="text-lg font-bold text-gray-900">{{ previewSummary.total_candidates }}</p></div>
+            <div class="rounded-lg bg-green-50 border border-green-200 p-3"><p class="text-xs text-green-700">Ready</p><p class="text-lg font-bold text-green-800">{{ previewSummary.ready_count }}</p></div>
+            <div class="rounded-lg bg-amber-50 border border-amber-200 p-3"><p class="text-xs text-amber-700">Existing</p><p class="text-lg font-bold text-amber-800">{{ previewSummary.existing_count }}</p></div>
+            <div class="rounded-lg bg-blue-50 border border-blue-200 p-3"><p class="text-xs text-blue-700">Original</p><p class="text-lg font-bold text-blue-800">Rs {{ formatAmount(previewSummary.original_amount) }}</p></div>
+            <div class="rounded-lg bg-purple-50 border border-purple-200 p-3"><p class="text-xs text-purple-700">Discount</p><p class="text-lg font-bold text-purple-800">Rs {{ formatAmount(previewSummary.discount_amount) }}</p></div>
+            <div class="rounded-lg bg-indigo-50 border border-indigo-200 p-3"><p class="text-xs text-indigo-700">Net</p><p class="text-lg font-bold text-indigo-800">Rs {{ formatAmount(previewSummary.net_amount) }}</p></div>
+          </div>
+
+          <div v-if="previewRows.length" class="rounded-xl border border-gray-200 overflow-hidden">
+            <div class="max-h-[420px] overflow-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50 sticky top-0 z-10">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">Student</th>
+                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">Class</th>
+                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">Fee Type</th>
+                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Original</th>
+                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Concession</th>
+                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Sibling</th>
+                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Scholarship</th>
+                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Fine</th>
+                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">Net</th>
+                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-100">
+                  <tr v-for="row in previewRows" :key="`${row.student_enrollment_id}-${row.fee_type_id}`" :class="row.status === 'existing' ? 'bg-amber-50/50' : ''">
+                    <td class="px-3 py-2 text-sm text-gray-900">
+                      <div class="font-medium">{{ row.student_name }}</div>
+                      <div class="text-xs text-gray-500">{{ row.roll_no }}</div>
+                    </td>
+                    <td class="px-3 py-2 text-sm text-gray-600">{{ row.class_name }} - {{ row.section_name }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-600">{{ row.fee_type_name }}</td>
+                    <td class="px-3 py-2 text-sm text-right font-medium">Rs {{ formatAmount(row.original_amount) }}</td>
+                    <td class="px-3 py-2 text-sm text-right text-green-700">Rs {{ formatAmount(row.concession_amount) }}</td>
+                    <td class="px-3 py-2 text-sm text-right text-green-700">Rs {{ formatAmount(row.sibling_discount_amount) }}</td>
+                    <td class="px-3 py-2 text-sm text-right text-green-700">Rs {{ formatAmount(row.scholarship_discount_amount) }}</td>
+                    <td class="px-3 py-2 text-sm text-right text-red-700">Rs {{ formatAmount(row.fine_amount) }}</td>
+                    <td class="px-3 py-2 text-sm text-right font-bold text-indigo-700">Rs {{ formatAmount(row.net_amount) }}</td>
+                    <td class="px-3 py-2 text-center">
+                      <span v-if="row.status === 'ready'" class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Ready</span>
+                      <span v-else class="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">Exists {{ row.existing_voucher_no }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <template #footer>
+          <div class="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+            <Button variant="secondary" @click="closeGenerateModal" class="w-full sm:w-auto">Cancel</Button>
+            <Button variant="primary" :loading="generating" :disabled="!previewSummary || previewSummary.ready_count === 0" @click="generateVouchers" class="w-full sm:w-auto">
+              Generate {{ previewSummary?.ready_count || 0 }} Vouchers
+            </Button>
+          </div>
+        </template>
+      </Modal>
+
       <Modal :show="showDeleteModal" @close="showDeleteModal = false">
         <template #title><div class="flex items-center"><div class="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-100 flex items-center justify-center mr-3 sm:mr-4"><svg class="w-5 h-5 sm:w-6 sm:h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg></div><span class="text-base sm:text-lg font-semibold text-gray-900">Delete Fee Voucher</span></div></template>
         <p class="text-xs sm:text-sm text-gray-600 mt-2">Are you sure you want to delete this fee voucher? This action cannot be undone.</p>
@@ -127,8 +261,23 @@ import Modal from '@/Components/Common/Modal.vue'
 import $ from 'jquery'
 import 'datatables.net'
 import axios from 'axios'
+const props = defineProps({
+  generatorOptions: {
+    type: Object,
+    default: () => ({
+      branches: [],
+      classes: [],
+      feeTypes: [],
+      academicYears: [],
+    }),
+  },
+})
+const generatorOptions = props.generatorOptions
 const showDeleteModal = ref(false)
+const showGenerateModal = ref(false)
 const deleting = ref(false)
+const previewLoading = ref(false)
+const generating = ref(false)
 const itemToDelete = ref(null)
 const tableSearch = ref('')
 const perPage = ref(10)
@@ -140,9 +289,107 @@ const mobileTotal = ref(0)
 const mobileOffset = ref(0)
 let table = null
 const filters = reactive({ search: '', status: '' })
+const today = new Date()
+const months = [
+  { value: 1, label: 'January' },
+  { value: 2, label: 'February' },
+  { value: 3, label: 'March' },
+  { value: 4, label: 'April' },
+  { value: 5, label: 'May' },
+  { value: 6, label: 'June' },
+  { value: 7, label: 'July' },
+  { value: 8, label: 'August' },
+  { value: 9, label: 'September' },
+  { value: 10, label: 'October' },
+  { value: 11, label: 'November' },
+  { value: 12, label: 'December' },
+]
+const generatorForm = reactive({
+  academic_year_id: generatorOptions.academicYears?.[0]?.id || '',
+  month: today.getMonth() + 1,
+  year: today.getFullYear(),
+  branch_id: '',
+  class_id: '',
+  fee_type_id: '',
+})
+const previewRows = ref([])
+const previewSummary = ref(null)
+const generatorError = ref('')
+const generatorNotice = ref('')
 const getStatusClass = (status) => {
   const c = { paid: 'bg-green-100 text-green-800', partial: 'bg-yellow-100 text-yellow-800', pending: 'bg-red-100 text-red-800', waived: 'bg-blue-100 text-blue-800', cancelled: 'bg-gray-100 text-gray-800' }
   return c[status] || 'bg-gray-100 text-gray-800'
+}
+const formatAmount = (value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const generatorPayload = () => ({
+  academic_year_id: generatorForm.academic_year_id,
+  month: generatorForm.month,
+  year: generatorForm.year,
+  branch_id: generatorForm.branch_id || null,
+  class_id: generatorForm.class_id || null,
+  fee_type_id: generatorForm.fee_type_id || null,
+})
+const openGenerateModal = () => {
+  showGenerateModal.value = true
+}
+const closeGenerateModal = () => {
+  showGenerateModal.value = false
+}
+const resetGenerator = () => {
+  generatorForm.academic_year_id = generatorOptions.academicYears?.[0]?.id || ''
+  generatorForm.month = today.getMonth() + 1
+  generatorForm.year = today.getFullYear()
+  generatorForm.branch_id = ''
+  generatorForm.class_id = ''
+  generatorForm.fee_type_id = ''
+  previewRows.value = []
+  previewSummary.value = null
+  generatorError.value = ''
+  generatorNotice.value = ''
+}
+const previewVouchers = async () => {
+  generatorError.value = ''
+  generatorNotice.value = ''
+  previewRows.value = []
+  previewSummary.value = null
+
+  if (!generatorForm.academic_year_id) {
+    generatorError.value = 'Academic year select karein.'
+    return
+  }
+
+  previewLoading.value = true
+  try {
+    const response = await axios.post(route('fee-vouchers.generate-preview'), generatorPayload())
+    previewRows.value = response.data.rows || []
+    previewSummary.value = response.data.summary || null
+  } catch (error) {
+    generatorError.value = error.response?.data?.message || 'Preview generate nahi ho saka.'
+  } finally {
+    previewLoading.value = false
+  }
+}
+const generateVouchers = () => {
+  if (!previewSummary.value || previewSummary.value.ready_count === 0) return
+
+  generating.value = true
+  generatorError.value = ''
+  generatorNotice.value = ''
+
+  axios.post(route('fee-vouchers.generate-monthly'), generatorPayload(), {
+    headers: { Accept: 'application/json' },
+  })
+    .then((response) => {
+      generatorNotice.value = response.data?.message || 'Vouchers generated successfully.'
+      loadData()
+      previewVouchers()
+    })
+    .catch((error) => {
+      generatorError.value = error.response?.data?.message || 'Vouchers generate nahi ho sake.'
+    })
+    .finally(() => {
+      generating.value = false
+    })
 }
 const loadMobileData = async () => {
   mobileLoading.value = true

@@ -9,9 +9,12 @@ use App\Models\StudentFeeConcession;
 use App\Models\InstallmentPlan;
 use App\Models\InstallmentSchedule;
 use App\Models\FeeStructure;
+use App\Models\FeeVoucher;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class StudentInstallmentAssignmentController extends Controller
 {
@@ -50,6 +53,11 @@ class StudentInstallmentAssignmentController extends Controller
 
         $enrollment = $studentInstallmentAssignment->studentEnrollment;
         $studentId = $enrollment?->student_id;
+        $amounts = $this->calculateInstallmentAmounts($enrollment, $studentInstallmentAssignment->installmentPlan, (float) $studentInstallmentAssignment->total_amount);
+        $effectiveTotal = ($amounts['has_fee_structure'] || $amounts['has_concession'])
+            ? $amounts['net_amount']
+            : (float) $studentInstallmentAssignment->total_amount;
+        $effectiveRemaining = max(0, round($effectiveTotal - (float) $studentInstallmentAssignment->amount_paid, 2));
 
         return Inertia::render('StudentInstallmentAssignments/Edit', [
             'assignment' => [
@@ -57,10 +65,10 @@ class StudentInstallmentAssignmentController extends Controller
                 'student_id'            => $studentId,
                 'student_enrollment_id' => $studentInstallmentAssignment->student_enrollment_id,
                 'installment_plan_id'   => $studentInstallmentAssignment->installment_plan_id,
-                'total_amount'          => $studentInstallmentAssignment->total_amount,
+                'total_amount'          => $effectiveTotal,
                 'amount_paid'           => $studentInstallmentAssignment->amount_paid,
-                'remaining_amount'      => $studentInstallmentAssignment->remaining_amount,
-                'status'                => $studentInstallmentAssignment->status,
+                'remaining_amount'      => $effectiveRemaining,
+                'status'                => $effectiveRemaining <= 0 ? 'completed' : $studentInstallmentAssignment->status,
                 'notes'                 => $studentInstallmentAssignment->notes,
             ],
             'installmentPlans' => InstallmentPlan::with('feeType:id,fee_name')
@@ -115,40 +123,14 @@ class StudentInstallmentAssignmentController extends Controller
         $enrollment = $studentInstallmentAssignment->studentEnrollment;
         $plan       = $studentInstallmentAssignment->installmentPlan;
 
-        // Look up original fee structure amount
-        $branchClass = $enrollment?->classSection?->branchClass;
-        $branchId    = $branchClass?->branch_id ?? $enrollment?->branch_id;
-        $classId     = $branchClass?->class_id;
-
-        $feeStructure = $classId ? FeeStructure::where('academic_year_id', $enrollment->academic_year_id)
-            ->where('branch_id', $branchId)
-            ->where('class_id', $classId)
-            ->where('fee_type_id', $plan?->applicable_fee_type_id)
-            ->where('is_active', true)
-            ->first() : null;
-
-        $baseAmount = (float) ($feeStructure?->amount ?? $studentInstallmentAssignment->total_amount);
-
-        // Look up active concession (specific fee type OR all fee types)
-        $concession = $enrollment ? StudentFeeConcession::where('student_enrollment_id', $enrollment->id)
-            ->where(function ($q) use ($plan) {
-                $q->where('fee_type_id', $plan?->applicable_fee_type_id)
-                  ->orWhereNull('fee_type_id');
-            })
-            ->where('is_active', true)
-            ->first() : null;
-
-        $concessionAmount  = 0;
-        $concessionDetails = null;
-        if ($concession) {
-            if ($concession->discount_type === 'percentage') {
-                $concessionAmount  = round(($baseAmount * $concession->discount_value) / 100, 2);
-                $concessionDetails = $concession->discount_value . '% discount (' . ($concession->concessionType?->concession_name ?? 'Concession') . ')';
-            } else {
-                $concessionAmount  = (float) $concession->discount_value;
-                $concessionDetails = 'Fixed Rs ' . number_format($concessionAmount) . ' (' . ($concession->concessionType?->concession_name ?? 'Concession') . ')';
-            }
-        }
+        $amounts = $this->calculateInstallmentAmounts($enrollment, $plan, (float) $studentInstallmentAssignment->total_amount);
+        $baseAmount = $amounts['base_amount'];
+        $concessionAmount = $amounts['concession_amount'];
+        $concessionDetails = $amounts['concession_detail'];
+        $effectiveTotal = ($amounts['has_fee_structure'] || $amounts['has_concession'])
+            ? $amounts['net_amount']
+            : (float) $studentInstallmentAssignment->total_amount;
+        $effectiveRemaining = max(0, round($effectiveTotal - (float) $studentInstallmentAssignment->amount_paid, 2));
 
         return response()->json([
             'id' => $studentInstallmentAssignment->id,
@@ -172,12 +154,13 @@ class StudentInstallmentAssignmentController extends Controller
                 'base_amount'       => $baseAmount,
                 'concession_amount' => $concessionAmount,
                 'concession_detail' => $concessionDetails,
-                'has_concession'    => $concession !== null,
+                'has_concession'    => $amounts['has_concession'],
+                'net_amount'        => $effectiveTotal,
             ],
-            'total_amount' => $studentInstallmentAssignment->total_amount,
+            'total_amount' => $effectiveTotal,
             'amount_paid' => $studentInstallmentAssignment->amount_paid,
-            'remaining_amount' => $studentInstallmentAssignment->remaining_amount,
-            'status' => $studentInstallmentAssignment->status,
+            'remaining_amount' => $effectiveRemaining,
+            'status' => $effectiveRemaining <= 0 ? 'completed' : $studentInstallmentAssignment->status,
             'notes' => $studentInstallmentAssignment->notes,
             'approved_by' => $studentInstallmentAssignment->approvedBy?->name ?? 'N/A',
             'created_at' => $studentInstallmentAssignment->created_at?->format('d M, Y h:i A') ?? 'N/A',
@@ -256,36 +239,14 @@ class StudentInstallmentAssignmentController extends Controller
             ]);
         }
 
-        $baseAmount = (float) $feeStructure->amount;
-        $concessionAmount = 0;
-        $concessionDetails = null;
+        $amounts = $this->calculateInstallmentAmounts($enrollment, $plan, 0);
 
         // Check for student concession — matches specific fee type OR "All Fee Types" (NULL)
-        $concession = StudentFeeConcession::where('student_enrollment_id', $enrollmentId)
-            ->where(function ($q) use ($plan) {
-                $q->where('fee_type_id', $plan->applicable_fee_type_id)
-                  ->orWhereNull('fee_type_id');
-            })
-            ->where('is_active', true)
-            ->first();
-
-        if ($concession) {
-            if ($concession->discount_type === 'percentage') {
-                $concessionAmount = ($baseAmount * $concession->discount_value) / 100;
-                $concessionDetails = $concession->discount_value . '% Discount';
-            } else {
-                $concessionAmount = $concession->discount_value;
-                $concessionDetails = 'Fixed Discount: Rs ' . number_format($concessionAmount);
-            }
-        }
-
-        $netAmount = max(0, $baseAmount - $concessionAmount);
-
         return response()->json([
-            'amount' => $netAmount,
-            'base_amount' => $baseAmount,
-            'concession_amount' => $concessionAmount,
-            'concession_details' => $concessionDetails,
+            'amount' => $amounts['net_amount'],
+            'base_amount' => $amounts['base_amount'],
+            'concession_amount' => $amounts['concession_amount'],
+            'concession_details' => $amounts['concession_detail'],
             'fee_type_name' => $plan->feeType?->fee_name,
             'due_day' => $feeStructure->due_day ?? 10,
             'message' => 'ok',
@@ -294,7 +255,12 @@ class StudentInstallmentAssignmentController extends Controller
 
     private function getMobileAssignments(Request $request)
     {
-        $query = StudentInstallmentAssignment::with(['studentEnrollment.student', 'installmentPlan']);
+        $query = StudentInstallmentAssignment::with([
+            'studentEnrollment.student',
+            'studentEnrollment.classSection.branchClass',
+            'installmentPlan',
+            'feeVoucher',
+        ]);
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -308,12 +274,23 @@ class StudentInstallmentAssignmentController extends Controller
             });
         }
         if ($request->filled('status')) { $query->where('status', $request->status); }
-        return response()->json($query->latest()->paginate($request->get('per_page', 10)));
+
+        $assignments = $query->latest()->paginate($request->get('per_page', 10));
+        $assignments->through(function ($assignment) {
+            return $this->withEffectiveInstallmentAmounts($assignment);
+        });
+
+        return response()->json($assignments);
     }
 
     private function getDataTablesAssignments(Request $request)
     {
-        $query = StudentInstallmentAssignment::with(['studentEnrollment.student', 'installmentPlan']);
+        $query = StudentInstallmentAssignment::with([
+            'studentEnrollment.student',
+            'studentEnrollment.classSection.branchClass',
+            'installmentPlan',
+            'feeVoucher',
+        ]);
         $recordsTotal = StudentInstallmentAssignment::count();
 
         if ($request->filled('search.value')) {
@@ -341,15 +318,17 @@ class StudentInstallmentAssignmentController extends Controller
         $assignments = $query->skip($start)->take($length)->get();
 
         $data = $assignments->map(function ($a, $index) use ($start) {
-            $statusClass = match($a->status) { 'active' => 'bg-green-100 text-green-800', 'completed' => 'bg-blue-100 text-blue-800', 'cancelled' => 'bg-red-100 text-red-800', default => 'bg-gray-100 text-gray-800' };
+            $a = $this->withEffectiveInstallmentAmounts($a);
+            $displayStatus = $a->effective_status ?? $a->status;
+            $statusClass = match($displayStatus) { 'active' => 'bg-green-100 text-green-800', 'completed' => 'bg-blue-100 text-blue-800', 'cancelled' => 'bg-red-100 text-red-800', default => 'bg-gray-100 text-gray-800' };
             return [
                 'DT_RowIndex'      => $start + $index + 1, 'id' => $a->id,
                 'student_name'     => $a->studentEnrollment?->student?->student_name ?? '-',
                 'plan_name'        => $a->installmentPlan?->plan_name ?? '-',
-                'total_amount'     => number_format($a->total_amount, 2),
+                'total_amount'     => number_format($a->effective_total_amount ?? $a->total_amount, 2),
                 'amount_paid'      => number_format($a->amount_paid ?? 0, 2),
-                'remaining_amount' => number_format($a->remaining_amount ?? 0, 2),
-                'status'         => '<span class="px-2 py-1 text-xs font-medium rounded-full ' . $statusClass . '">' . ucfirst($a->status) . '</span>',
+                'remaining_amount' => number_format($a->effective_remaining_amount ?? $a->remaining_amount ?? 0, 2),
+                'status'         => '<span class="px-2 py-1 text-xs font-medium rounded-full ' . $statusClass . '">' . ucfirst($displayStatus) . '</span>',
                 'action' => '
                     <div class="flex items-center justify-center gap-2">
                         <button onclick=\'showAssignment(' . json_encode(['id' => $a->id]) . ')\' class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
@@ -369,10 +348,10 @@ class StudentInstallmentAssignmentController extends Controller
         $validated = $request->validate([
             'student_enrollment_id' => 'required|exists:student_enrollments,id',
             'installment_plan_id'   => 'required|exists:installment_plans,id',
-            'total_amount'          => 'required|numeric|min:1',
+            'total_amount'          => 'required|numeric|min:0',
             'status'                => 'nullable|string|in:active,completed,defaulted',
             'notes'                 => 'nullable|string',
-            'schedule'              => 'required|array|min:1',
+            'schedule'              => 'nullable|array',
             'schedule.*.kist_number' => 'required|integer|min:1',
             'schedule.*.kist_amount' => 'required|numeric|min:0',
             'schedule.*.due_date'    => 'required|date',
@@ -390,34 +369,48 @@ class StudentInstallmentAssignmentController extends Controller
                 ->with('error', 'An active installment assignment already exists for this student with the same plan. Please edit the existing record or complete/cancel it first.');
         }
 
-        $validated['approved_by'] = auth()->id();
-        $validated['remaining_amount'] = $validated['total_amount'];
-        $validated['amount_paid'] = 0;
+        $enrollment = StudentEnrollment::with(['classSection.branchClass'])->findOrFail($validated['student_enrollment_id']);
+        $plan = InstallmentPlan::findOrFail($validated['installment_plan_id']);
+        $linkedVoucher = $this->findVoucherForInstallment($enrollment, $plan);
+        $amounts = $this->calculateInstallmentAmounts($enrollment, $plan, (float) $validated['total_amount']);
+        $totalAmount = ($amounts['has_fee_structure'] || $amounts['has_concession'])
+            ? $amounts['net_amount']
+            : (float) $validated['total_amount'];
+        $schedule = collect($validated['schedule'] ?? [])->values();
 
-        // Create assignment
-        $assignment = StudentInstallmentAssignment::create([
-            'student_enrollment_id' => $validated['student_enrollment_id'],
-            'installment_plan_id'   => $validated['installment_plan_id'],
-            'total_amount'          => $validated['total_amount'],
-            'remaining_amount'      => $validated['total_amount'],
-            'amount_paid'           => 0,
-            'status'                => $validated['status'] ?? 'active',
-            'approved_by'           => $validated['approved_by'],
-            'notes'                 => $validated['notes'] ?? null,
-        ]);
-
-        // Auto-generate schedule
-        foreach ($validated['schedule'] as $kist) {
-            InstallmentSchedule::create([
-                'assignment_id' => $assignment->id,
-                'kist_number'   => $kist['kist_number'],
-                'kist_amount'   => $kist['kist_amount'],
-                'due_date'      => $kist['due_date'],
-                'status'        => 'pending',
+        if ($totalAmount > 0 && $schedule->isEmpty()) {
+            throw ValidationException::withMessages([
+                'schedule' => 'Installment schedule is required when net amount is greater than zero.',
             ]);
         }
 
-        return redirect()->route('student-installment-assignments.index')->with('success', 'Installment assigned successfully with ' . count($validated['schedule']) . ' kists!');
+        DB::transaction(function () use ($validated, $totalAmount, $schedule, $linkedVoucher) {
+            $assignment = StudentInstallmentAssignment::create([
+                'student_enrollment_id' => $validated['student_enrollment_id'],
+                'installment_plan_id'   => $validated['installment_plan_id'],
+                'fee_voucher_id'        => $linkedVoucher?->id,
+                'total_amount'          => $totalAmount,
+                'remaining_amount'      => $totalAmount,
+                'amount_paid'           => 0,
+                'status'                => $totalAmount <= 0 ? 'completed' : ($validated['status'] ?? 'active'),
+                'approved_by'           => auth()->id(),
+                'notes'                 => $validated['notes'] ?? null,
+            ]);
+
+            if ($totalAmount > 0) {
+                foreach ($schedule as $kist) {
+                    InstallmentSchedule::create([
+                        'assignment_id' => $assignment->id,
+                        'kist_number'   => $kist['kist_number'],
+                        'kist_amount'   => $kist['kist_amount'],
+                        'due_date'      => $kist['due_date'],
+                        'status'        => 'pending',
+                    ]);
+                }
+            }
+        });
+
+        return redirect()->route('student-installment-assignments.index')->with('success', 'Installment assigned successfully with ' . ($totalAmount > 0 ? $schedule->count() : 0) . ' kists!');
     }
 
     public function update(Request $request, StudentInstallmentAssignment $studentInstallmentAssignment)
@@ -437,5 +430,113 @@ class StudentInstallmentAssignmentController extends Controller
         $studentInstallmentAssignment->schedule()->delete();
         $studentInstallmentAssignment->delete();
         return back()->with('success', 'Assignment deleted successfully!');
+    }
+
+    private function calculateInstallmentAmounts(?StudentEnrollment $enrollment, ?InstallmentPlan $plan, float $fallbackAmount = 0): array
+    {
+        $branchClass = $enrollment?->classSection?->branchClass;
+        $branchId = $branchClass?->branch_id ?? $enrollment?->branch_id;
+        $classId = $branchClass?->class_id;
+        $feeTypeId = $plan?->applicable_fee_type_id;
+
+        $voucher = $this->findVoucherForInstallment($enrollment, $plan);
+        if ($voucher) {
+            return [
+                'base_amount' => round((float) $voucher->original_amount, 2),
+                'concession_amount' => round((float) $voucher->discount_amount, 2),
+                'concession_detail' => $voucher->discount_amount > 0 ? 'Voucher discounts applied' : null,
+                'net_amount' => round((float) $voucher->remaining_amount, 2),
+                'has_concession' => (float) $voucher->discount_amount > 0,
+                'has_fee_structure' => true,
+            ];
+        }
+
+        $feeStructure = ($enrollment && $classId && $feeTypeId)
+            ? FeeStructure::where('academic_year_id', $enrollment->academic_year_id)
+                ->where('branch_id', $branchId)
+                ->where('class_id', $classId)
+                ->where('fee_type_id', $feeTypeId)
+                ->where('is_active', true)
+                ->first()
+            : null;
+
+        $baseAmount = (float) ($feeStructure?->amount ?? $fallbackAmount);
+        $concession = $enrollment ? StudentFeeConcession::with('concessionType')
+            ->where('student_enrollment_id', $enrollment->id)
+            ->where(function ($q) use ($feeTypeId) {
+                $q->where('fee_type_id', $feeTypeId)
+                    ->orWhereNull('fee_type_id');
+            })
+            ->where('is_active', true)
+            ->first() : null;
+
+        $concessionAmount = 0;
+        $concessionDetail = null;
+
+        if ($concession && $baseAmount > 0) {
+            if ($concession->discount_type === 'percentage') {
+                $concessionAmount = round(($baseAmount * (float) $concession->discount_value) / 100, 2);
+                $concessionDetail = $concession->discount_value . '% discount (' . ($concession->concessionType?->concession_name ?? 'Concession') . ')';
+            } else {
+                $concessionAmount = (float) $concession->discount_value;
+                $concessionDetail = 'Fixed Rs ' . number_format($concessionAmount, 2) . ' (' . ($concession->concessionType?->concession_name ?? 'Concession') . ')';
+            }
+        }
+
+        $concessionAmount = min($baseAmount, max(0, $concessionAmount));
+        $netAmount = max(0, round($baseAmount - $concessionAmount, 2));
+
+        return [
+            'base_amount' => round($baseAmount, 2),
+            'concession_amount' => round($concessionAmount, 2),
+            'concession_detail' => $concessionDetail,
+            'net_amount' => $netAmount,
+            'has_concession' => $concession !== null && $concessionAmount > 0,
+            'has_fee_structure' => $feeStructure !== null,
+        ];
+    }
+
+    private function withEffectiveInstallmentAmounts(StudentInstallmentAssignment $assignment): StudentInstallmentAssignment
+    {
+        if ($assignment->feeVoucher) {
+            $effectiveTotal = (float) $assignment->feeVoucher->net_amount;
+            $effectiveRemaining = (float) $assignment->feeVoucher->remaining_amount;
+            $assignment->setAttribute('effective_total_amount', $effectiveTotal);
+            $assignment->setAttribute('effective_remaining_amount', $effectiveRemaining);
+            $assignment->setAttribute('effective_status', $effectiveRemaining <= 0 ? 'completed' : $assignment->status);
+
+            return $assignment;
+        }
+
+        $amounts = $this->calculateInstallmentAmounts(
+            $assignment->studentEnrollment,
+            $assignment->installmentPlan,
+            (float) $assignment->total_amount
+        );
+
+        $effectiveTotal = ($amounts['has_fee_structure'] || $amounts['has_concession'])
+            ? $amounts['net_amount']
+            : (float) $assignment->total_amount;
+        $effectiveRemaining = max(0, round($effectiveTotal - (float) $assignment->amount_paid, 2));
+
+        $assignment->setAttribute('effective_total_amount', $effectiveTotal);
+        $assignment->setAttribute('effective_remaining_amount', $effectiveRemaining);
+        $assignment->setAttribute('effective_status', $effectiveRemaining <= 0 ? 'completed' : $assignment->status);
+
+        return $assignment;
+    }
+
+    private function findVoucherForInstallment(?StudentEnrollment $enrollment, ?InstallmentPlan $plan): ?FeeVoucher
+    {
+        $feeTypeId = $plan?->applicable_fee_type_id;
+        if (!$enrollment || !$feeTypeId) {
+            return null;
+        }
+
+        return FeeVoucher::where('student_enrollment_id', $enrollment->id)
+            ->where('fee_type_id', $feeTypeId)
+            ->whereIn('status', ['pending', 'partial', 'paid'])
+            ->latest('id')
+            ->first();
     }
 }

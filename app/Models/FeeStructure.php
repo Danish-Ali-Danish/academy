@@ -16,6 +16,9 @@ class FeeStructure extends Model
         'academic_year_id', 'branch_id', 'class_id', 'fee_type_id',
         'amount', 'due_day', 'effective_from', 'effective_to',
         'is_active', 'created_by',
+        'parent_fee_structure_id', 'version_no', 'version_status',
+        'superseded_by_fee_structure_id', 'approved_by', 'approved_at',
+        'change_request_id',
     ];
 
     protected $casts = [
@@ -24,6 +27,8 @@ class FeeStructure extends Model
         'effective_from' => 'date',
         'effective_to'   => 'date',
         'is_active'      => 'boolean',
+        'version_no'      => 'integer',
+        'approved_at'     => 'datetime',
     ];
 
     // ─── Boot: Auto-assign to students on save ───────────────────────────────────
@@ -69,6 +74,36 @@ class FeeStructure extends Model
     public function studentFeeStructures(): HasMany
     {
         return $this->hasMany(StudentFeeStructure::class);
+    }
+
+    public function parentFeeStructure(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_fee_structure_id');
+    }
+
+    public function childVersions(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_fee_structure_id');
+    }
+
+    public function supersededBy(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'superseded_by_fee_structure_id');
+    }
+
+    public function versions(): HasMany
+    {
+        return $this->hasMany(FeeStructureVersion::class);
+    }
+
+    public function changeRequests(): HasMany
+    {
+        return $this->hasMany(FeeStructureChangeRequest::class);
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     // ─── Scopes ──────────────────────────────────────────────────────────────────

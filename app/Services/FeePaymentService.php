@@ -19,6 +19,25 @@ class FeePaymentService
     {
         DB::beginTransaction();
         try {
+            // Handle Advance Payment (no voucher needed)
+            if (!empty($paymentData['is_advance']) && $paymentData['is_advance'] === true) {
+                $payment = FeePayment::create([
+                    'receipt_no'            => $this->generateReceiptNo(),
+                    'voucher_id'            => null,
+                    'student_enrollment_id' => $paymentData['student_enrollment_id'],
+                    'paid_amount'           => $paymentData['paid_amount'],
+                    'payment_date'          => $paymentData['payment_date'] ?? now(),
+                    'payment_method'        => $paymentData['payment_method'],
+                    'bank_name'             => $paymentData['bank_name'] ?? null,
+                    'transaction_ref'       => $paymentData['transaction_ref'] ?? null,
+                    'received_by'           => auth()->id() ?? 1,
+                    'is_advance'            => true,
+                    'notes'                 => $paymentData['notes'] ?? null,
+                ]);
+
+                return $this->processAdvancePayment($payment, $paymentData);
+            }
+
             $voucher = FeeVoucher::findOrFail($paymentData['voucher_id']);
 
             // 1. Create the Payment Record
@@ -32,28 +51,14 @@ class FeePaymentService
                 'bank_name'             => $paymentData['bank_name'] ?? null,
                 'transaction_ref'       => $paymentData['transaction_ref'] ?? null,
                 'received_by'           => auth()->id() ?? 1,
-                'is_advance'            => $paymentData['is_advance'] ?? false,
+                'is_advance'            => false,
                 'notes'                 => $paymentData['notes'] ?? null,
             ]);
 
-            // 2. Handle Advance Payment
-            if (!empty($paymentData['is_advance']) && $paymentData['is_advance'] === true) {
-                return $this->processAdvancePayment($payment, $paymentData);
-            }
+            // 2. Update the Voucher balances from the actual linked payment rows.
+            app(FeeVoucherBalanceService::class)->sync($voucher);
 
-            // 3. Update the Voucher balances
-            $voucher->paid_amount += $paymentData['paid_amount'];
-            $voucher->remaining_amount = $voucher->net_amount - $voucher->paid_amount;
-
-            if ($voucher->remaining_amount <= 0) {
-                $voucher->status = 'paid';
-            } elseif ($voucher->paid_amount > 0) {
-                $voucher->status = 'partial';
-            }
-
-            $voucher->save();
-
-            // 4. Update the Student Ledger (Credit)
+            // 3. Update the Student Ledger (Credit)
             $balanceAfter = $this->calculateStudentBalance($voucher->student_enrollment_id);
 
             StudentLedger::create([
@@ -67,10 +72,10 @@ class FeePaymentService
                 'created_by'            => auth()->id() ?? 1,
             ]);
 
-            // 5. Update Installment Schedule if applicable
+            // 4. Update Installment Schedule if applicable
             $this->updateInstallmentSchedule($voucher, $payment);
 
-            // 6. Check and update Previous Year Balance if any payment is made against it
+            // 5. Check and update Previous Year Balance if any payment is made against it
             $this->updatePreviousYearBalance($voucher->student_enrollment_id, $paymentData['paid_amount']);
 
             DB::commit();
@@ -174,12 +179,17 @@ class FeePaymentService
     {
         DB::beginTransaction();
         try {
-            $assignment = \App\Models\StudentInstallmentAssignment::with('installmentPlan')
+            $assignment = \App\Models\StudentInstallmentAssignment::with(['installmentPlan', 'feeVoucher'])
                 ->findOrFail($installmentAssignmentId);
+
+            if (!$assignment->fee_voucher_id) {
+                throw new Exception('Installment assignment is not linked with a fee voucher.');
+            }
 
             // Create payment
             $payment = FeePayment::create([
                 'receipt_no'            => $this->generateReceiptNo(),
+                'voucher_id'            => $assignment->fee_voucher_id,
                 'student_enrollment_id' => $assignment->student_enrollment_id,
                 'paid_amount'           => $paymentData['paid_amount'],
                 'payment_date'          => $paymentData['payment_date'] ?? now(),
@@ -188,15 +198,25 @@ class FeePaymentService
                 'notes'                 => 'Installment payment: ' . ($paymentData['installment_number'] ?? ''),
             ]);
 
+            if ($assignment->feeVoucher) {
+                app(FeeVoucherBalanceService::class)->sync($assignment->feeVoucher);
+            }
+
             // Update installment schedule
-            InstallmentSchedule::where('student_installment_assignment_id', $assignment->id)
-                ->where('installment_number', $paymentData['installment_number'] ?? 1)
+            InstallmentSchedule::where('assignment_id', $assignment->id)
+                ->where('kist_number', $paymentData['installment_number'] ?? 1)
                 ->update([
                     'payment_id'   => $payment->id,
                     'paid_amount'  => $paymentData['paid_amount'],
                     'payment_date' => now(),
                     'status'       => 'paid',
                 ]);
+
+            $totalPaid = (float) InstallmentSchedule::where('assignment_id', $assignment->id)->sum('paid_amount');
+            $assignment->amount_paid = round($totalPaid, 2);
+            $assignment->remaining_amount = max(0, round((float) $assignment->total_amount - $totalPaid, 2));
+            $assignment->status = $assignment->remaining_amount <= 0 ? 'completed' : 'active';
+            $assignment->save();
 
             // Create ledger entry
             StudentLedger::create([
@@ -232,17 +252,6 @@ class FeePaymentService
             // If payment was against a voucher, restore voucher amounts
             if ($payment->voucher && !$payment->is_advance) {
                 $voucher = $payment->voucher;
-                $voucher->paid_amount -= $payment->paid_amount;
-                $voucher->remaining_amount = $voucher->net_amount - $voucher->paid_amount;
-
-                if ($voucher->paid_amount <= 0) {
-                    $voucher->status = 'pending';
-                    $voucher->paid_amount = 0;
-                } elseif ($voucher->paid_amount < $voucher->net_amount) {
-                    $voucher->status = 'partial';
-                }
-
-                $voucher->save();
             }
 
             // Create reversing ledger entry (debit)
@@ -259,6 +268,10 @@ class FeePaymentService
 
             // Mark payment as deleted (soft delete handles this)
             $payment->delete();
+
+            if (isset($voucher)) {
+                app(FeeVoucherBalanceService::class)->sync($voucher);
+            }
 
             DB::commit();
             return [
@@ -293,7 +306,8 @@ class FeePaymentService
     private function generateReceiptNo(): string
     {
         $year = now()->format('Y');
-        $lastPayment = FeePayment::where('receipt_no', 'like', "RCP-{$year}-%")
+        $lastPayment = FeePayment::withTrashed()
+            ->where('receipt_no', 'like', "RCP-{$year}-%")
             ->orderBy('id', 'desc')
             ->first();
 
@@ -319,19 +333,42 @@ class FeePaymentService
         }
 
         // Find the current installment
-        $schedule = InstallmentSchedule::where('student_installment_assignment_id', $assignment->id)
-            ->whereNull('payment_id')
-            ->orderBy('installment_number')
-            ->first();
+        $remainingPayment = (float) $payment->paid_amount;
 
-        if ($schedule) {
+        $schedules = InstallmentSchedule::where('assignment_id', $assignment->id)
+            ->whereIn('status', ['pending', 'partial', 'overdue'])
+            ->orderBy('kist_number')
+            ->get();
+
+        foreach ($schedules as $schedule) {
+            if ($remainingPayment <= 0) {
+                break;
+            }
+
+            $alreadyPaid = (float) ($schedule->paid_amount ?? 0);
+            $due = max(0, (float) $schedule->kist_amount - $alreadyPaid);
+            $applied = min($due, $remainingPayment);
+
+            if ($applied <= 0) {
+                continue;
+            }
+
+            $newPaid = round($alreadyPaid + $applied, 2);
             $schedule->update([
                 'payment_id'   => $payment->id,
-                'paid_amount'  => $payment->paid_amount,
-                'payment_date' => now(),
-                'status'       => 'paid',
+                'paid_amount'  => $newPaid,
+                'payment_date' => $payment->payment_date ?? now(),
+                'status'       => $newPaid >= (float) $schedule->kist_amount ? 'paid' : 'partial',
             ]);
+
+            $remainingPayment = round($remainingPayment - $applied, 2);
         }
+
+        $totalPaid = (float) InstallmentSchedule::where('assignment_id', $assignment->id)->sum('paid_amount');
+        $assignment->amount_paid = round($totalPaid, 2);
+        $assignment->remaining_amount = max(0, round((float) $assignment->total_amount - $totalPaid, 2));
+        $assignment->status = $assignment->remaining_amount <= 0 ? 'completed' : 'active';
+        $assignment->save();
     }
 
     /**

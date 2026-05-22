@@ -8,6 +8,8 @@ use App\Models\StudentEnrollment;
 use App\Models\StudentFeeStructure;
 use App\Models\FeeType;
 use App\Models\FeeConcessionType;
+use App\Models\FeeVoucher;
+use App\Services\FeeGenerationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -284,7 +286,9 @@ class StudentFeeConcessionController extends Controller
         }
 
         $validated['approved_by'] = auth()->id();
-        StudentFeeConcession::create($validated);
+        $concession = StudentFeeConcession::create($validated);
+        $this->recalculateAffectedVouchers($concession->student_enrollment_id, $concession->fee_type_id);
+
         return redirect()->route('student-fee-concessions.index')->with('success', 'Fee concession assigned successfully!');
     }
 
@@ -320,13 +324,32 @@ class StudentFeeConcessionController extends Controller
                 ->with('error', 'An active fee concession already exists for this student with the same concession type. Please edit the existing record or deactivate it first.');
         }
 
+        $oldEnrollmentId = $studentFeeConcession->student_enrollment_id;
+        $oldFeeTypeId = $studentFeeConcession->fee_type_id;
+
         $studentFeeConcession->update($validated);
+        $this->recalculateAffectedVouchers($oldEnrollmentId, $oldFeeTypeId);
+        $this->recalculateAffectedVouchers($studentFeeConcession->student_enrollment_id, $studentFeeConcession->fee_type_id);
+
         return redirect()->route('student-fee-concessions.index')->with('success', 'Fee concession updated successfully!');
     }
 
     public function destroy(StudentFeeConcession $studentFeeConcession)
     {
+        $enrollmentId = $studentFeeConcession->student_enrollment_id;
+        $feeTypeId = $studentFeeConcession->fee_type_id;
         $studentFeeConcession->delete();
+        $this->recalculateAffectedVouchers($enrollmentId, $feeTypeId);
+
         return back()->with('success', 'Fee concession deleted successfully!');
+    }
+
+    private function recalculateAffectedVouchers(int $studentEnrollmentId, ?int $feeTypeId): void
+    {
+        FeeVoucher::where('student_enrollment_id', $studentEnrollmentId)
+            ->when($feeTypeId, fn($query) => $query->where('fee_type_id', $feeTypeId))
+            ->whereIn('status', ['pending', 'partial', 'paid'])
+            ->get()
+            ->each(fn(FeeVoucher $voucher) => app(FeeGenerationService::class)->recalculateVoucher($voucher));
     }
 }

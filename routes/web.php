@@ -39,11 +39,17 @@ use App\Http\Controllers\StudentFeeConcessionController;
 use App\Http\Controllers\StudentFeeStructureController;
 use App\Http\Controllers\StudentScholarshipController;
 use App\Http\Controllers\StudentInstallmentAssignmentController;
-use App\Http\Controllers\InstallmentScheduleController;
 use App\Http\Controllers\FeeReminderController;
+use App\Http\Controllers\FeeReminderRuleController;
+use App\Http\Controllers\FeeReminderTemplateController;
 use App\Http\Controllers\FeeApprovalRequestController;
 use App\Http\Controllers\FeeStructureChangeLogController;
+use App\Http\Controllers\StudentLedgerController;
+use App\Http\Controllers\DefaulterManagementController;
 use App\Http\Controllers\PreviousYearBalanceController;
+use App\Http\Controllers\EnhancedFeeCollectionsController;
+use App\Http\Controllers\EnhancedFeeDuesController;
+use App\Http\Controllers\EnhancedFeeStructureChangeLogsController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -58,6 +64,16 @@ Route::post('academic-years/{academicYear}/activate', [AcademicYearController::c
 Route::post('academic-years/{academicSession}/deactivate', [AcademicYearController::class, 'deactivate'])->name('academic-years.deactivate');
 Route::post('academic-years/{academicSession}/complete', [AcademicYearController::class, 'complete'])->name('academic-years.complete');
 Route::get('api/academic-years/dropdown', [AcademicYearController::class, 'dropdown'])->name('academic-years.dropdown');
+
+// ==========================================
+// STUDENT PORTAL API ROUTES
+// ==========================================
+Route::prefix('api/student-portal')->group(function () {
+    Route::post('/login', [\App\Http\Controllers\Api\StudentPortalApiController::class, 'login']);
+    Route::get('/{studentId}/dashboard', [\App\Http\Controllers\Api\StudentPortalApiController::class, 'getDashboardData']);
+    Route::get('/{studentId}/fees', [\App\Http\Controllers\Api\StudentPortalApiController::class, 'getFeeDetails']);
+});
+
 Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
@@ -226,8 +242,15 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
     Route::get('api/student-installment-assignments/fee-for-enrollment', [StudentInstallmentAssignmentController::class, 'getFeeForEnrollment'])
         ->name('student-installment-assignments.fee-for-enrollment');
 
-    // Installment Schedules
-    Route::resource('installment-schedules', InstallmentScheduleController::class);
+    // Installment schedules are managed inside Student Installment Assignments.
+    Route::redirect('installment-schedules', 'student-installment-assignments')
+        ->name('installment-schedules.index');
+    Route::redirect('installment-schedules/create', 'student-installment-assignments/create')
+        ->name('installment-schedules.create');
+    Route::redirect('installment-schedules/{installmentSchedule}/edit', 'student-installment-assignments')
+        ->name('installment-schedules.edit');
+    Route::redirect('installment-schedules/{installmentSchedule}', 'student-installment-assignments')
+        ->name('installment-schedules.show');
 
     // ==========================================
     // FEE MANAGEMENT ROUTES
@@ -241,6 +264,12 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
     // Fee Structures
     Route::post('fee-structures/sync-all-to-students', [FeeStructureController::class, 'syncAllToStudents'])
         ->name('fee-structures.sync-all-to-students');
+    Route::post('fee-structures/{feeStructure}/impact-preview', [FeeStructureController::class, 'impactPreview'])
+        ->name('fee-structures.impact-preview');
+    Route::post('fee-structure-change-requests/{changeRequest}/approve', [FeeStructureController::class, 'approveChange'])
+        ->name('fee-structure-change-requests.approve');
+    Route::post('fee-structure-change-requests/{changeRequest}/reject', [FeeStructureController::class, 'rejectChange'])
+        ->name('fee-structure-change-requests.reject');
     Route::resource('fee-structures', FeeStructureController::class);
     Route::get('api/fee-structures/dropdown', [FeeStructureController::class, 'dropdown'])
         ->name('fee-structures.dropdown');
@@ -248,6 +277,12 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
         ->name('fee-structures.sync-to-students');
 
     // Fee Vouchers
+    Route::post('fee-vouchers/generate-preview', [FeeVoucherController::class, 'previewMonthlyVouchers'])
+        ->name('fee-vouchers.generate-preview');
+    Route::post('fee-vouchers/generate-monthly', [FeeVoucherController::class, 'generateMonthlyVouchers'])
+        ->name('fee-vouchers.generate-monthly');
+    Route::get('api/fee-vouchers/enrollments-by-student/{studentId}', [FeeVoucherController::class, 'enrollmentsByStudent'])
+        ->name('fee-vouchers.enrollments-by-student');
     Route::resource('fee-vouchers', FeeVoucherController::class);
     Route::get('api/fee-vouchers/dropdown', [FeeVoucherController::class, 'dropdown'])
         ->name('fee-vouchers.dropdown');
@@ -256,8 +291,18 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
     Route::resource('fee-payments', FeePaymentController::class);
     Route::get('api/fee-payments/dropdown', [FeePaymentController::class, 'dropdown'])
         ->name('fee-payments.dropdown');
+    Route::get('api/fee-payments/pending-vouchers/{enrollmentId}', [FeePaymentController::class, 'pendingVouchers'])
+        ->name('fee-payments.pending-vouchers');
+    Route::get('api/fee-payments/search-students', [FeePaymentController::class, 'searchStudents'])
+        ->name('fee-payments.search-students');
+    Route::post('fee-payments/store-multiple', [FeePaymentController::class, 'storeMultiple'])
+        ->name('fee-payments.store-multiple');
 
     // Fee Voucher Fines
+    Route::post('fee-voucher-fines/apply-overdue', [FeeVoucherFineController::class, 'applyOverdue'])
+        ->name('fee-voucher-fines.apply-overdue');
+    Route::post('fee-voucher-fines/preview-overdue', [FeeVoucherFineController::class, 'previewOverdue'])
+        ->name('fee-voucher-fines.preview-overdue');
     Route::resource('fee-voucher-fines', FeeVoucherFineController::class);
 
     // Fee Fine Rules
@@ -275,7 +320,9 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
     Route::resource('fee-advance-adjustments', FeeAdvanceAdjustmentController::class);
 
     // Fee Collection Summaries
-    Route::resource('fee-collection-summaries', FeeCollectionSummaryController::class);
+    Route::get('fee-collection-summaries/dashboard', [FeeCollectionSummaryController::class, 'dashboard'])->name('fee-collection-summaries.dashboard');
+    Route::get('api/fee-collection-summaries/dashboard', [FeeCollectionSummaryController::class, 'dashboardData'])->name('fee-collection-summaries.dashboard-data');
+    Route::get('fee-collection-summaries', [FeeCollectionSummaryController::class, 'index'])->name('fee-collection-summaries.index');
 
     // Fee Concession Types
     Route::resource('fee-concession-types', FeeConcessionTypeController::class);
@@ -303,6 +350,8 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
         ->name('academy-payment-accounts.dropdown');
 
     // Missing Modules added dynamically
+    Route::get('api/cheque-tracking/students', [\App\Http\Controllers\ChequeTrackingController::class, 'searchStudents'])
+        ->name('cheque-tracking.students');
     Route::resource('cheque-tracking', \App\Http\Controllers\ChequeTrackingController::class);
     Route::resource('online-payment-proofs', \App\Http\Controllers\OnlinePaymentProofController::class);
     Route::resource('fee-voucher-edit-history', \App\Http\Controllers\FeeVoucherEditHistoryController::class);
@@ -310,10 +359,27 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
 
     // Fee Reminders
     Route::resource('fee-reminders', FeeReminderController::class);
+    Route::post('fee-reminders/{fee_reminder}/followups', [FeeReminderController::class, 'storeFollowup'])->name('fee-reminders.followups.store');
+    
+    Route::resource('fee-reminder-rules', FeeReminderRuleController::class)->except(['create', 'show', 'edit']);
+    Route::resource('fee-reminder-templates', FeeReminderTemplateController::class)->except(['create', 'show', 'edit']);
+    
     Route::get('api/fee-reminders/enrollments-by-student/{studentId}', [FeeReminderController::class, 'getEnrollmentsByStudent'])
         ->name('fee-reminders.enrollments-by-student');
     Route::get('api/fee-reminders/unpaid-vouchers/{enrollmentId}', [FeeReminderController::class, 'getUnpaidVouchers'])
         ->name('fee-reminders.unpaid-vouchers');
+
+    // Student Ledger and Defaulter Management
+    Route::get('student-ledgers', [StudentLedgerController::class, 'index'])->name('student-ledgers.index');
+    Route::get('api/student-ledgers/data', [StudentLedgerController::class, 'data'])->name('student-ledgers.data');
+    Route::post('api/student-ledgers/manual-entry', [StudentLedgerController::class, 'manualEntry'])->name('student-ledgers.manual-entry');
+
+    Route::get('defaulters', [DefaulterManagementController::class, 'index'])->name('defaulters.index');
+    Route::get('api/defaulters/data', [DefaulterManagementController::class, 'data'])->name('defaulters.data');
+    Route::get('api/defaulters/export', [DefaulterManagementController::class, 'export'])->name('defaulters.export');
+    Route::post('api/defaulters/reminders', [DefaulterManagementController::class, 'sendReminders'])->name('defaulters.reminders');
+    Route::post('api/defaulters/block', [DefaulterManagementController::class, 'block'])->name('defaulters.block');
+    Route::post('api/defaulters/unblock', [DefaulterManagementController::class, 'unblock'])->name('defaulters.unblock');
 
     // Fee Approval Requests
     Route::resource('fee-approval-requests', FeeApprovalRequestController::class);
@@ -406,6 +472,35 @@ Route::get('/subject-groups/subjects', [SubjectGroupController::class, 'getAllSu
     Route::delete('/recycle-bin/destroy-multiple', [\App\Http\Controllers\RecycleBinController::class, 'destroyMultiple'])->name('recycle-bin.destroy-multiple');
     Route::delete('/recycle-bin/empty-type', [\App\Http\Controllers\RecycleBinController::class, 'emptyType'])->name('recycle-bin.empty-type');
     Route::delete('/recycle-bin/empty-all', [\App\Http\Controllers\RecycleBinController::class, 'emptyAll'])->name('recycle-bin.empty-all');
-});
 
+    // ==========================================
+    // ENHANCED FINANCE APIs
+    // ==========================================
+    // Enhanced Fee Collections  (Payment Transactions, Billing, Reconciliation)
+    Route::prefix('api/enhanced/collections')->group(function () {
+        Route::get('/', [EnhancedFeeCollectionsController::class, 'index'])->name('enhanced-collections.index');
+        Route::post('/', [EnhancedFeeCollectionsController::class, 'store'])->name('enhanced-collections.store');
+        Route::patch('{id}/status', [EnhancedFeeCollectionsController::class, 'updateStatus'])->name('enhanced-collections.update-status');
+        Route::get('{id}/receipt', [EnhancedFeeCollectionsController::class, 'generateReceipt'])->name('enhanced-collections.receipt');
+        Route::post('bulk', [EnhancedFeeCollectionsController::class, 'processBulkPayment'])->name('enhanced-collections.bulk');
+        Route::get('analytics', [EnhancedFeeCollectionsController::class, 'getAnalytics'])->name('enhanced-collections.analytics');
+        Route::get('export', [EnhancedFeeCollectionsController::class, 'export'])->name('enhanced-collections.export');
+    });
+
+    // Enhanced Fee Dues
+    Route::prefix('api/enhanced/dues')->group(function () {
+        Route::get('/', [EnhancedFeeDuesController::class, 'index'])->name('enhanced-dues.index');
+    });
+
+    // Enhanced Fee Structure Change Logs  (Workflow, Impact, Rollback)
+    Route::prefix('api/enhanced/change-logs')->group(function () {
+        Route::get('/', [EnhancedFeeStructureChangeLogsController::class, 'index'])->name('enhanced-change-logs.index');
+        Route::post('/change-request', [EnhancedFeeStructureChangeLogsController::class, 'createChangeRequest'])->name('enhanced-change-logs.request');
+        Route::post('/change-request/{id}/approve', [EnhancedFeeStructureChangeLogsController::class, 'approveChangeRequest'])->name('enhanced-change-logs.approve');
+        Route::post('/change-request/{id}/reject', [EnhancedFeeStructureChangeLogsController::class, 'rejectChangeRequest'])->name('enhanced-change-logs.reject');
+        Route::get('/change-request/{id}', [EnhancedFeeStructureChangeLogsController::class, 'getChangeRequestDetails'])->name('enhanced-change-logs.details');
+        Route::get('/versions/{feeStructureId}', [EnhancedFeeStructureChangeLogsController::class, 'getFeeStructureVersions'])->name('enhanced-change-logs.versions');
+        Route::post('/rollback/{versionId}', [EnhancedFeeStructureChangeLogsController::class, 'rollbackFeeStructure'])->name('enhanced-change-logs.rollback');
+    });
+});
 require __DIR__.'/auth.php';

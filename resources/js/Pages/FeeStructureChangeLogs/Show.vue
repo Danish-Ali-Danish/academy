@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Components/Layout/AuthenticatedLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 
 defineProps({
     log: Object,
@@ -30,15 +30,15 @@ defineProps({
                                 <div class="space-y-2">
                                     <div>
                                         <span class="text-sm text-gray-500">Fee Type:</span>
-                                        <p class="font-medium">{{ log.fee_structure?.fee_type?.fee_name || '-' }}</p>
+                                        <p class="font-medium">{{ log.structure?.fee_type || log.fee_structure?.fee_type?.fee_name || '-' }}</p>
                                     </div>
                                     <div>
                                         <span class="text-sm text-gray-500">Class:</span>
-                                        <p class="font-medium">{{ log.fee_structure?.class?.class_name || '-' }}</p>
+                                        <p class="font-medium">{{ log.structure?.class || log.fee_structure?.class?.class_name || '-' }}</p>
                                     </div>
                                     <div>
                                         <span class="text-sm text-gray-500">Branch:</span>
-                                        <p class="font-medium">{{ log.fee_structure?.branch?.branch_name || '-' }}</p>
+                                        <p class="font-medium">{{ log.structure?.branch || log.fee_structure?.branch?.branch_name || '-' }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -57,8 +57,8 @@ defineProps({
                                     </div>
                                     <div>
                                         <span class="text-sm text-gray-500">Difference:</span>
-                                        <p :class="['font-medium', log.new_amount > log.old_amount ? 'text-red-600' : 'text-green-600']">
-                                            {{ log.new_amount > log.old_amount ? '+' : '' }}Rs. {{ (log.new_amount - log.old_amount).toFixed(2) }}
+                                        <p :class="['font-medium', log.amount_increased ? 'text-red-600' : 'text-green-600']">
+                                            {{ log.amount_increased ? '+' : '-' }}Rs. {{ log.amount_difference }}
                                         </p>
                                     </div>
                                 </div>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\FeeStructureChangeLog;
 use App\Models\FeeStructure;
+use App\Models\FeeStructureChangeRequest;
 use App\Models\AcademicYear;
 use App\Models\Branch;
 use App\Models\Classes;
@@ -12,6 +13,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
+use App\Services\FeeStructureVersioningService;
 
 class FeeStructureChangeLogController extends Controller
 {
@@ -21,19 +23,70 @@ class FeeStructureChangeLogController extends Controller
             return $this->getMobileLogs($request);
         }
 
-        if ($request->ajax() && $request->has('draw')) {
+        if ($request->has('draw')) {
             return $this->getDataTablesLogs($request);
         }
 
-        return Inertia::render('FeeStructureChangeLogs/Index');
+        $pendingRequests = FeeStructureChangeRequest::pending()
+            ->with(['feeStructure.feeType', 'feeStructure.branch', 'feeStructure.class', 'requestedBy'])
+            ->latest('requested_at')
+            ->get()
+            ->map(fn ($request) => [
+                'id' => $request->id,
+                'request_code' => $request->request_code,
+                'fee_type' => $request->feeStructure?->feeType?->fee_name ?? '-',
+                'branch_name' => $request->feeStructure?->branch?->branch_name ?? '-',
+                'class_name' => $request->feeStructure?->class?->class_name ?? '-',
+                'old_amount' => number_format((float) ($request->old_values['amount'] ?? 0), 2),
+                'new_amount' => number_format((float) ($request->proposed_values['amount'] ?? 0), 2),
+                'affected_students_count' => $request->affected_students_count,
+                'unpaid_vouchers_count' => $request->unpaid_vouchers_count,
+                'estimated_monthly_difference' => number_format((float) $request->estimated_monthly_difference, 2),
+                'reason' => $request->reason,
+                'requested_by' => $request->requestedBy?->name ?? '-',
+                'requested_at' => $request->requested_at?->format('d M, Y h:i A') ?? '-',
+            ]);
+
+        return Inertia::render('FeeStructureChangeLogs/Index', [
+            'pendingRequests' => $pendingRequests,
+        ]);
     }
 
     public function show(FeeStructureChangeLog $feeStructureChangeLog)
     {
-        $feeStructureChangeLog->load(['feeStructure', 'changedBy']);
+        $feeStructureChangeLog->load([
+            'feeStructure.feeType',
+            'feeStructure.branch',
+            'feeStructure.class',
+            'feeType',
+            'branch',
+            'class',
+            'changedBy',
+        ]);
+
+        $feeStructure = $feeStructureChangeLog->feeStructure;
 
         return Inertia::render('FeeStructureChangeLogs/Show', [
-            'log' => $feeStructureChangeLog,
+            'log' => [
+                'id' => $feeStructureChangeLog->id,
+                'fee_structure' => $feeStructure,
+                'structure' => [
+                    'fee_type' => $feeStructure?->feeType?->fee_name ?? $feeStructureChangeLog->feeType?->fee_name ?? '-',
+                    'branch' => $feeStructure?->branch?->branch_name ?? $feeStructureChangeLog->branch?->branch_name ?? '-',
+                    'class' => $feeStructure?->class?->class_name ?? $feeStructureChangeLog->class?->class_name ?? '-',
+                ],
+                'old_amount' => number_format((float) $feeStructureChangeLog->old_amount, 2),
+                'new_amount' => number_format((float) $feeStructureChangeLog->new_amount, 2),
+                'amount_increased' => (float) $feeStructureChangeLog->new_amount > (float) $feeStructureChangeLog->old_amount,
+                'amount_difference' => number_format(abs((float) $feeStructureChangeLog->new_amount - (float) $feeStructureChangeLog->old_amount), 2),
+                'old_due_day' => $feeStructureChangeLog->old_due_day,
+                'new_due_day' => $feeStructureChangeLog->new_due_day,
+                'effective_from' => $feeStructureChangeLog->effective_from?->format('d M, Y') ?? '-',
+                'change_reason' => $feeStructureChangeLog->change_reason,
+                'affects_existing_vouchers' => $feeStructureChangeLog->affects_existing_vouchers,
+                'changed_by' => $feeStructureChangeLog->changedBy,
+                'changed_at' => $feeStructureChangeLog->changed_at?->format('d M, Y h:i A') ?? '-',
+            ],
         ]);
     }
 
@@ -209,21 +262,21 @@ class FeeStructureChangeLogController extends Controller
         $validated['changed_by'] = auth()->id() ?? 1;
         $validated['changed_at'] = $validated['changed_at'] ?? now();
 
-        DB::transaction(function () use ($validated) {
-            // Create the change log
-            FeeStructureChangeLog::create($validated);
-
-            // Update the actual fee structure
-            $feeStructure = FeeStructure::findOrFail($validated['fee_structure_id']);
-            $feeStructure->update([
-                'amount'       => $validated['new_amount'],
-                'due_day'      => $validated['new_due_day'] ?? $feeStructure->due_day,
-                'effective_from' => $validated['effective_from'],
-            ]);
-        });
+        $feeStructure = FeeStructure::findOrFail($validated['fee_structure_id']);
+        app(FeeStructureVersioningService::class)->requestChange($feeStructure, [
+            'academic_year_id' => $validated['academic_year_id'] ?? $feeStructure->academic_year_id,
+            'branch_id' => $validated['branch_id'] ?? $feeStructure->branch_id,
+            'class_id' => $validated['class_id'] ?? $feeStructure->class_id,
+            'fee_type_id' => $validated['fee_type_id'] ?? $feeStructure->fee_type_id,
+            'amount' => $validated['new_amount'],
+            'due_day' => $validated['new_due_day'] ?? $feeStructure->due_day,
+            'effective_from' => $validated['effective_from'],
+            'effective_to' => optional($feeStructure->effective_to)->format('Y-m-d'),
+            'is_active' => $feeStructure->is_active,
+        ], $validated['change_reason'], $request);
 
         return redirect()->route('fee-structure-change-logs.index')
-            ->with('success', 'Fee structure change logged and applied successfully!');
+            ->with('success', 'Fee structure change request submitted for approval.');
     }
 
     public function edit(FeeStructureChangeLog $feeStructureChangeLog)
@@ -273,31 +326,13 @@ class FeeStructureChangeLogController extends Controller
 
     public function update(Request $request, FeeStructureChangeLog $feeStructureChangeLog)
     {
-        $validated = $request->validate([
-            'old_amount'              => 'required|numeric|min:0',
-            'new_amount'              => 'required|numeric|min:0',
-            'old_due_day'             => 'nullable|integer|min:1|max:31',
-            'new_due_day'             => 'nullable|integer|min:1|max:31',
-            'change_reason'           => 'required|string',
-            'effective_from'          => 'required|date',
-            'affects_existing_vouchers' => 'boolean',
-        ]);
-
-        $feeStructureChangeLog->update($validated);
-
         return redirect()->route('fee-structure-change-logs.index')
-            ->with('success', 'Fee structure change log updated successfully!');
+            ->with('error', 'Fee structure audit logs are immutable. Create a new approved change request instead.');
     }
 
     public function destroy(FeeStructureChangeLog $feeStructureChangeLog)
     {
-        // Note: Deleting a change log doesn't revert the fee structure change
-        // This is intentional for audit trail purposes
-        // If you need to revert, create a new change with reversed values
-
-        $feeStructureChangeLog->delete();
-
-        return back()->with('success', 'Fee structure change log deleted successfully!');
+        return back()->with('error', 'Fee structure audit logs cannot be deleted. They are retained for financial audit.');
     }
 
     public function getFeeStructureDetails($structureId)
